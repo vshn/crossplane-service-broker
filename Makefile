@@ -9,7 +9,7 @@ DOCKER_CMD   ?= docker
 DOCKER_ARGS  ?= --rm --user "$$(id -u)" --volume "$${PWD}:/src" --workdir /src
 
 # Project parameters
-BINARY_NAME ?= crossplane-service-broker-poc
+BINARY_NAME ?= crossplane-service-broker
 
 VERSION ?= $(shell git describe --tags --always --dirty --match=v* || (echo "command failed $$?"; exit 1))
 
