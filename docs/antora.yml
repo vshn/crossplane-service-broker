@@ -1,0 +1,6 @@
+name: crossplane-service-broker
+title: Crossplane Service Broker
+version: master
+start_page: ROOT:index.adoc
+nav:
+  - modules/ROOT/nav.adoc
