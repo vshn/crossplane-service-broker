@@ -2,4 +2,3 @@
 .vscode
 /kubeconfig
 __debug_bin
-crossplane-service-broker
