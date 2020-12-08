@@ -10,7 +10,7 @@ import (
 )
 
 type API struct {
-	r  *mux.Router
+	r      *mux.Router
 	logger lager.Logger
 }
 

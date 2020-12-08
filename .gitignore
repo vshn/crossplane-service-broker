@@ -2,3 +2,8 @@
 .vscode
 /kubeconfig
 __debug_bin
+testbin/
+node_modules/
+e2e/debug/
+crossplane-service-broker
+!cmd/crossplane-service-broker

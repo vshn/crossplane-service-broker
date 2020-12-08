@@ -1,0 +1,12 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crossplane-service-broker-redis
+  namespace: crossplane-service-broker
+spec:
+  template:
+    spec:
+      containers:
+        - name: crossplane-service-broker
+          image: localhost:5000/vshn/crossplane-service-broker:e2e

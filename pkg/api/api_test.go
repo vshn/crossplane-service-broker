@@ -14,7 +14,7 @@ func TestAPI(t *testing.T) {
 	ts := httptest.NewServer(a)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL +  "/healthz")
+	res, err := http.Get(ts.URL + "/healthz")
 	assert.NoError(t, err)
 	assert.Equal(t, res.StatusCode, http.StatusOK)
 }
