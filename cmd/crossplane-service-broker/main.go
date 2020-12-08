@@ -118,4 +118,3 @@ func readAppConfig() (*appConfig, error) {
 
 	return &cfg, nil
 }
-

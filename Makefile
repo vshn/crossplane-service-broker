@@ -5,6 +5,18 @@ SHELL := bash
 .DELETE_ON_ERROR:
 .SUFFIXES:
 
+TESTBIN_DIR ?= ./testbin/bin
+KIND_BIN ?= $(TESTBIN_DIR)/kind
+KIND_VERSION ?= 0.9.0
+KIND_KUBECONFIG ?= ./testbin/kind-kubeconfig
+KIND_NODE_VERSION ?= v1.18.8
+KIND_CLUSTER ?= crossplane-service-broker
+KIND_REGISTRY_NAME ?= kind-registry
+KIND_REGISTRY_PORT ?= 5000
+
+# Run tests (see https://sdk.operatorframework.io/docs/building-operators/golang/references/envtest-setup)
+ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
+
 DOCKER_CMD   ?= docker
 DOCKER_ARGS  ?= --rm --user "$$(id -u)" --volume "$${PWD}:/src" --workdir /src
 
@@ -14,6 +26,7 @@ BINARY_NAME ?= crossplane-service-broker
 VERSION ?= $(shell git describe --tags --always --dirty --match=v* || (echo "command failed $$?"; exit 1))
 
 IMAGE_NAME ?= docker.io/vshn/$(BINARY_NAME):$(VERSION)
+E2E_IMAGE ?= localhost:$(KIND_REGISTRY_PORT)/vshn/$(BINARY_NAME):e2e
 
 ANTORA_PREVIEW_CMD ?= $(DOCKER_CMD) run --rm --publish 35729:35729 --publish 2020:2020 --volume "${PWD}":/preview/antora vshn/antora-preview:2.3.4 --style=syn --antora=docs
 
@@ -31,16 +44,21 @@ GOCLEAN ?= $(GOCMD) clean
 GOTEST  ?= $(GOCMD) test
 GOGET   ?= $(GOCMD) get
 
+BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -v \
+				-o $(BINARY_NAME) \
+				-ldflags "-X main.Version=$(VERSION) -X 'main.BuildDate=$(shell date)'" \
+				cmd/crossplane-service-broker/main.go
+
 .PHONY: all
 all: lint test build
 
 .PHONY: build
 build:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -v \
-		-o $(BINARY_NAME) \
-		-ldflags "-X main.Version=$(VERSION) -X 'main.BuildDate=$(shell date)'" \
-		cmd/crossplane-service-broker/main.go
+	$(BUILD_CMD)
 	@echo built '$(VERSION)'
+
+$(BINARY_NAME):
+	$(BUILD_CMD)
 
 .PHONY: test
 test:
@@ -50,14 +68,9 @@ test:
 run:
 	go run cmd/crossplane-service-broker/main.go
 
-.PHONY: clean
-clean:
-	$(GOCLEAN)
-	rm -f $(BINARY_NAME)
-
 .PHONY: docker
-docker:
-	DOCKER_BUILDKIT=1 docker build -t $(IMAGE_NAME) --build-arg VERSION="$(VERSION)" .
+docker: $(BINARY_NAME)
+	DOCKER_BUILDKIT=1 docker build -t $(IMAGE_NAME) -t $(E2E_IMAGE) --build-arg VERSION="$(VERSION)" .
 	@echo built image $(IMAGE_NAME)
 
 .PHONY: lint
@@ -80,3 +93,49 @@ lint_yaml: $(YAML_FILES)
 .PHONY: docs-serve
 docs-serve:
 	$(ANTORA_PREVIEW_CMD)
+
+$(TESTBIN_DIR):
+	mkdir -p $(TESTBIN_DIR)
+
+.PHONY: integration_test
+integration_test: export ENVTEST_K8S_VERSION = 1.19.0
+integration_test: generate fmt vet $(TESTBIN_DIR)
+	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
+	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test -tags=integration -v ./... -coverprofile cover.out
+
+.PHONY: setup_e2e_test
+setup_e2e_test: export KUBECONFIG = $(KIND_KUBECONFIG)
+setup_e2e_test: $(KIND_BIN)
+	@kubectl config use-context kind-$(KIND_CLUSTER)
+
+.PHONY: run_kind
+run_kind: export KUBECONFIG = $(KIND_KUBECONFIG)
+run_kind: setup_e2e_test run
+
+$(KIND_BIN): export KUBECONFIG = $(KIND_KUBECONFIG)
+$(KIND_BIN): $(TESTBIN_DIR)
+	curl -Lo $(KIND_BIN) "https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-$$(uname)-amd64"
+	chmod +x $(KIND_BIN)
+	docker run -d -p "$(KIND_REGISTRY_PORT):5000" --name "$(KIND_REGISTRY_NAME)" docker.io/library/registry:2
+	$(KIND_BIN) create cluster --name $(KIND_CLUSTER) --image kindest/node:$(KIND_NODE_VERSION) --config=e2e/kind-config.yaml
+	@docker network connect "kind" "$(KIND_REGISTRY_NAME)" || true
+	kubectl cluster-info
+
+clean: export KUBECONFIG = $(KIND_KUBECONFIG)
+clean:
+	$(GOCLEAN)
+	rm -f $(BINARY_NAME)
+	$(KIND_BIN) delete cluster --name $(KIND_CLUSTER) || true
+	docker stop "$(KIND_REGISTRY_NAME)" || true
+	docker rm "$(KIND_REGISTRY_NAME)" || true
+	docker rmi "$(E2E_IMAGE)" || true
+	rm -r testbin/ dist/ bin/ cover.out $(BIN_FILENAME) || true
+	$(MAKE) -C e2e clean
+
+.PHONY: install_bats
+install_bats:
+	$(MAKE) -C e2e install_bats
+
+e2e_test: docker
+	docker push $(E2E_IMAGE)
+	$(MAKE) -C e2e run_bats -e KUBECONFIG=../$(KIND_KUBECONFIG)

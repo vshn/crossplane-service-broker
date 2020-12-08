@@ -1,0 +1,10 @@
+resources:
+  - ../../deploy/base
+  - secret.yaml
+patchesStrategicMerge:
+  - deployment.yaml
+namespace: crossplane-service-broker
+
+commonLabels:
+  app.kubernetes.io/name: e2e
+  app.kubernetes.io/managed-by: kustomize

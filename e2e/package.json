@@ -1,0 +1,6 @@
+{
+  "name": "crossplane-service-broker",
+  "devDependencies": {
+    "bats": "1.2.1"
+  }
+}
