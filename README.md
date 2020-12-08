@@ -1,4 +1,4 @@
-[![Build](https://img.shields.io/github/workflow/status/vshn/crossplane-service-broker/Build)][build]
+[![Build](https://img.shields.io/github/workflow/status/vshn/crossplane-service-broker/Pull%20Request)][build]
 ![Go version](https://img.shields.io/github/go-mod/go-version/vshn/crossplane-service-broker)
 [![Version](https://img.shields.io/github/v/release/vshn/crossplane-service-broker)][releases]
 [![GitHub downloads](https://img.shields.io/github/downloads/vshn/crossplane-service-broker/total)][releases]
@@ -84,7 +84,7 @@ To remove the local KIND cluster and other resources, run
 make clean
 ```
 
-[build]: https://github.com/vshn/crossplane-service-broker/actions?query=workflow%3ABuild
+[build]: https://github.com/vshn/crossplane-service-broker/actions?query=workflow%3APull%20Request
 [releases]: https://github.com/vshn/crossplane-service-broker/releases
 [license]: https://github.com/vshn/crossplane-service-broker/blob/master/LICENSE
 [dockerhub]: https://hub.docker.com/r/vshn/crossplane-service-broker
