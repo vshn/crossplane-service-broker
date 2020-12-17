@@ -8,13 +8,17 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/gorilla/mux"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/vshn/crossplane-service-broker/pkg/api"
+	"github.com/vshn/crossplane-service-broker/pkg/brokerapi"
 )
 
 const (
@@ -43,14 +47,24 @@ func main() {
 }
 
 func run(ctx context.Context, signalChan chan os.Signal, logger lager.Logger) error {
-	cfg, err := readAppConfig()
+	cfg, err := readAppConfig(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("unable to read app env: %w", err)
 	}
 
 	router := mux.NewRouter()
 
-	a := api.New(logger.WithData(lager.Data{"component": "api"}))
+	config, err := loadRESTConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	b, err := brokerapi.New(cfg.serviceIDs, config, logger.WithData(lager.Data{"component": "brokerapi"}))
+	if err != nil {
+		return err
+	}
+
+	a := api.New(b, cfg.username, cfg.password, logger.WithData(lager.Data{"component": "api"}))
 	router.NewRoute().Handler(a)
 
 	srv := http.Server{
@@ -82,35 +96,64 @@ func run(ctx context.Context, signalChan chan os.Signal, logger lager.Logger) er
 	return srv.Shutdown(graceCtx)
 }
 
+func loadRESTConfig(cfg *appConfig) (*rest.Config, error) {
+	if cfg.kubeconfig != "" {
+		return clientcmd.BuildConfigFromFlags("", cfg.kubeconfig)
+	}
+	return rest.InClusterConfig()
+}
+
 type appConfig struct {
+	kubeconfig     string
+	serviceIDs     []string
 	listenAddr     string
+	username       string
+	password       string
 	readTimeout    time.Duration
 	writeTimeout   time.Duration
 	maxHeaderBytes int
 }
 
-func readAppConfig() (*appConfig, error) {
+func readAppConfig(getEnv func(string) string) (*appConfig, error) {
 	cfg := appConfig{
-		listenAddr: os.Getenv("OSB_HTTP_LISTEN_ADDR"),
+		kubeconfig: getEnv("KUBECONFIG"),
+		serviceIDs: strings.Split(getEnv("OSB_SERVICE_IDS"), ","),
+		username:   getEnv("OSB_USERNAME"),
+		password:   getEnv("OSB_PASSWORD"),
+		listenAddr: getEnv("OSB_HTTP_LISTEN_ADDR"),
+	}
+
+	for i := range cfg.serviceIDs {
+		cfg.serviceIDs[i] = strings.TrimSpace(cfg.serviceIDs[i])
+		if len(cfg.serviceIDs[i]) == 0 {
+			return nil, errors.New("OSB_SERVICE_IDS is required")
+		}
+	}
+
+	if cfg.username == "" {
+		return nil, errors.New("OSB_USERNAME is required")
+	}
+	if cfg.password == "" {
+		return nil, errors.New("OSB_PASSWORD is required")
 	}
 
 	if cfg.listenAddr == "" {
 		cfg.listenAddr = ":8080"
 	}
 
-	rt, err := time.ParseDuration(os.Getenv("OSB_HTTP_READ_TIMEOUT"))
+	rt, err := time.ParseDuration(getEnv("OSB_HTTP_READ_TIMEOUT"))
 	if err != nil {
 		rt = 180 * time.Second
 	}
 	cfg.readTimeout = rt
 
-	wt, err := time.ParseDuration(os.Getenv("OSB_HTTP_WRITE_TIMEOUT"))
+	wt, err := time.ParseDuration(getEnv("OSB_HTTP_WRITE_TIMEOUT"))
 	if err != nil {
 		wt = 180 * time.Second
 	}
-	cfg.readTimeout = wt
+	cfg.writeTimeout = wt
 
-	mhb, err := strconv.Atoi(os.Getenv("OSB_HTTP_MAX_HEADER_BYTES"))
+	mhb, err := strconv.Atoi(getEnv("OSB_HTTP_MAX_HEADER_BYTES"))
 	if err != nil {
 		mhb = 1 << 20 // 1 MB
 	}

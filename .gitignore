@@ -2,8 +2,9 @@
 .vscode
 /kubeconfig
 __debug_bin
-testbin/
+testdata/
 node_modules/
 e2e/debug/
 crossplane-service-broker
 !cmd/crossplane-service-broker
+cover.out

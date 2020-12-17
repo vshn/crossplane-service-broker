@@ -5,17 +5,18 @@ SHELL := bash
 .DELETE_ON_ERROR:
 .SUFFIXES:
 
-TESTBIN_DIR ?= ./testbin/bin
+TESTDATA_DIR ?= ./testdata
+TESTBIN_DIR ?= $(TESTDATA_DIR)/bin
 KIND_BIN ?= $(TESTBIN_DIR)/kind
 KIND_VERSION ?= 0.9.0
-KIND_KUBECONFIG ?= ./testbin/kind-kubeconfig
+KIND_KUBECONFIG ?= $(TESTBIN_DIR)/kind-kubeconfig
 KIND_NODE_VERSION ?= v1.18.8
 KIND_CLUSTER ?= crossplane-service-broker
 KIND_REGISTRY_NAME ?= kind-registry
 KIND_REGISTRY_PORT ?= 5000
 
-# Run tests (see https://sdk.operatorframework.io/docs/building-operators/golang/references/envtest-setup)
-ENVTEST_ASSETS_DIR=$(shell pwd)/testbin
+# Needs absolute path to setup env variables correctly.
+ENVTEST_ASSETS_DIR = $(shell pwd)/testdata
 
 DOCKER_CMD   ?= docker
 DOCKER_ARGS  ?= --rm --user "$$(id -u)" --volume "$${PWD}:/src" --workdir /src
@@ -36,6 +37,17 @@ YAMLLINT_ARGS   ?= --no-warnings
 YAMLLINT_CONFIG ?= .yamllint.yml
 YAMLLINT_IMAGE  ?= docker.io/cytopia/yamllint:latest
 YAMLLINT_DOCKER ?= $(DOCKER_CMD) run $(DOCKER_ARGS) $(YAMLLINT_IMAGE)
+
+TESTDATA_CRD_DIR = $(TESTDATA_DIR)/crds
+CROSSPLANE_VERSION = v1.0.0
+CROSSPLANE_CRDS = $(addprefix $(TESTDATA_CRD_DIR)/, apiextensions.crossplane.io_compositeresourcedefinitions.yaml \
+					apiextensions.crossplane.io_compositions.yaml \
+					pkg.crossplane.io_configurationrevisions.yaml \
+					pkg.crossplane.io_configurations.yaml \
+					pkg.crossplane.io_controllerconfigs.yaml \
+					pkg.crossplane.io_locks.yaml \
+					pkg.crossplane.io_providerrevisions.yaml \
+					pkg.crossplane.io_providers.yaml)
 
 # Go parameters
 GOCMD   ?= go
@@ -94,13 +106,24 @@ lint_yaml: $(YAML_FILES)
 docs-serve:
 	$(ANTORA_PREVIEW_CMD)
 
-$(TESTBIN_DIR):
-	mkdir -p $(TESTBIN_DIR)
+$(TESTDATA_DIR):
+	mkdir $(TESTDATA_DIR)
+
+$(TESTBIN_DIR): $(TESTDATA_DIR)
+	mkdir $(TESTBIN_DIR)
+
+$(TESTDATA_CRD_DIR): $(TESTDATA_DIR)
+	mkdir $(TESTDATA_CRD_DIR)
+
+# TODO(mw): something with this target is off, $@ should be used instead of $*.yaml but I can't seem to make it work.
+$(TESTDATA_CRD_DIR)/%.yaml: | $(TESTDATA_CRD_DIR)
+	curl -sSLo $@ https://raw.githubusercontent.com/crossplane/crossplane/$(CROSSPLANE_VERSION)/cluster/charts/crossplane/crds/$*.yaml
+
+$(ENVTEST_ASSETS_DIR)/setup-envtest.sh: $(TESTDATA_DIR)
+	curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
 
 .PHONY: integration_test
-integration_test: export ENVTEST_K8S_VERSION = 1.19.0
-integration_test: generate fmt vet $(TESTBIN_DIR)
-	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
+integration_test: fmt vet $(ENVTEST_ASSETS_DIR)/setup-envtest.sh $(CROSSPLANE_CRDS)
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test -tags=integration -v ./... -coverprofile cover.out
 
 .PHONY: setup_e2e_test

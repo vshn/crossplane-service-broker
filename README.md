@@ -27,6 +27,25 @@ You'll need:
 
 These are the most common make targets: `build`, `test`, `docker`, `run`.
 
+### Folder structure overview
+
+```
+.
+├── cmd
+│   └── crossplane-service-broker    # main file
+├── deploy
+│   └── base                         # deployment files
+├── docs                             # antora docs
+├── e2e                              # e2e testing files
+├── internal
+│   ├── broker                       # translation layer between crossplane <-> open service broker
+│   └── crossplane                   # crossplane service layer
+├── pkg
+│   ├── api                          # exposed HTTP API server
+│   └── brokerapi                    # service broker implementation
+└── testdata                         # integration testing files
+```
+
 ### Run the service broker
 
 You can run the operator in different ways:
@@ -57,6 +76,40 @@ Example VSCode run configuration:
         "OSB_SERVICE_IDS": "PROVIDE-SERVICE-UUIDS-HERE"
       },
       "args": []
+    }
+  ]
+}
+```
+
+## Run integration tests
+
+"Integration" testing is done using [envtest](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/envtest) and [crossplane's integration test helper](https://github.com/crossplane/crossplane-runtime/tree/master/pkg/test/integration).
+
+```
+make integration_test
+```
+
+Example VSCode run configuration (to be able to debug things):
+
+```
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Integration tests",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${workspaceFolder}/pkg/brokerapi",
+      "env": {
+        "KUBEBUILDER_ASSETS": "../../testdata/bin",
+        "DEBUG": "true" // optional
+      },
+      "args": [],
+      "buildFlags": "-tags=integration"
     }
   ]
 }
