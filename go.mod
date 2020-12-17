@@ -12,7 +12,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/pivotal-cf/brokerapi/v7 v7.4.0
 	github.com/stretchr/testify v1.6.1
-	go.uber.org/zap v1.10.0
+	go.uber.org/zap v1.16.0
 	k8s.io/apimachinery v0.20.0
 	k8s.io/client-go v0.19.3
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
