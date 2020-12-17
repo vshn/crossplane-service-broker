@@ -10,7 +10,7 @@ require (
 	github.com/go-logr/logr v0.3.0 // indirect
 	github.com/go-logr/zapr v0.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/pivotal-cf/brokerapi/v7 v7.4.0
+	github.com/pivotal-cf/brokerapi/v7 v7.5.0
 	github.com/stretchr/testify v1.6.1
 	go.uber.org/zap v1.16.0
 	k8s.io/apimachinery v0.20.0
