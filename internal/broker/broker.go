@@ -6,7 +6,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
-	"k8s.io/utils/pointer"
+	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 
 	"github.com/vshn/crossplane-service-broker/internal/crossplane"
 )
@@ -29,69 +29,66 @@ func (b Broker) Services(ctx context.Context) ([]domain.Service, error) {
 
 	xrds, err := b.cp.ServiceXRDs(ctx)
 	if err != nil {
-		return nil, err
+		return nil, toApiResponseError(ctx, err)
 	}
 
 	for _, xrd := range xrds {
-		plans, err := b.ServicePlans(ctx, []string{xrd.Labels.ServiceID})
-
+		plans, err := b.servicePlans(ctx, []string{xrd.Labels.ServiceID})
 		if err != nil {
 			b.logger.Error("plan retrieval failed", err, lager.Data{"serviceId": xrd.Labels.ServiceID})
 		}
 
-		meta := &domain.ServiceMetadata{}
-		if err := json.Unmarshal([]byte(xrd.Metadata), meta); err != nil {
-			b.logger.Error("parse-metadata", err)
-			meta.DisplayName = xrd.Labels.ServiceName
-		}
-
-		var tags []string
-		if err := json.Unmarshal([]byte(xrd.Tags), &tags); err != nil {
-			b.logger.Error("parse-tags", err)
-		}
-
-		services = append(services, domain.Service{
-			ID:                   xrd.Labels.ServiceID,
-			Name:                 xrd.Labels.ServiceName,
-			Description:          xrd.Description,
-			Bindable:             xrd.Labels.Bindable,
-			InstancesRetrievable: true,
-			BindingsRetrievable:  xrd.Labels.Bindable,
-			PlanUpdatable:        false,
-			Plans:                plans,
-			Metadata:             meta,
-			Tags:                 tags,
-		})
+		services = append(services, newService(xrd, plans, b.logger))
 	}
 
 	return services, nil
 }
 
-// ServicePlans retrieves a combined view of services and their plans.
-func (b Broker) ServicePlans(ctx context.Context, serviceIDs []string) ([]domain.ServicePlan, error) {
+// servicePlans retrieves a combined view of services and their plans.
+func (b Broker) servicePlans(ctx context.Context, serviceIDs []string) ([]domain.ServicePlan, error) {
 	plans := make([]domain.ServicePlan, 0)
 
 	compositions, err := b.cp.Plans(ctx, serviceIDs)
 	if err != nil {
-		return nil, err
+		return nil, toApiResponseError(ctx, err)
 	}
 
 	for _, c := range compositions {
-		planName := c.Labels.PlanName
-		meta := &domain.ServicePlanMetadata{}
-		if err := json.Unmarshal([]byte(c.Metadata), meta); err != nil {
-			b.logger.Error("parse-metadata", err)
-			meta.DisplayName = planName
-		}
-		plans = append(plans, domain.ServicePlan{
-			ID:          c.Composition.Name,
-			Name:        planName,
-			Description: c.Description,
-			Free:        pointer.BoolPtr(false),
-			Bindable:    &c.Labels.Bindable,
-			Metadata:    meta,
-		})
+		plans = append(plans, newServicePlan(c, b.logger))
 	}
 
 	return plans, nil
+}
+
+// Provision creates a new service instance.
+// TODO(mw): serviceID is not required, sounds wrong. Should we check if service exists here? and plan belongs to service?
+func (b Broker) Provision(ctx context.Context, instanceID, planID string, params json.RawMessage) (domain.ProvisionedServiceSpec, error) {
+	spec := domain.ProvisionedServiceSpec{}
+
+	p, err := b.cp.Plan(ctx, planID)
+	if err != nil {
+		return spec, toApiResponseError(ctx, err)
+	}
+
+	_, exists, err := b.cp.Instance(ctx, instanceID, p)
+	if err != nil {
+		return spec, toApiResponseError(ctx, err)
+	}
+	if exists {
+		// To avoid having to compare parameters,
+		// only instances without any parameters are considered to be equal to another (i.e. existing)
+		if params == nil {
+			spec.AlreadyExists = true
+			return spec, nil
+		}
+		return spec, apiresponses.ErrInstanceAlreadyExists
+	}
+
+	err = b.cp.CreateInstance(ctx, instanceID, p, params)
+	if err != nil {
+		return spec, toApiResponseError(ctx, err)
+	}
+
+	spec.IsAsync = true
+	return spec, nil
 }

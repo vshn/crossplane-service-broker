@@ -119,11 +119,8 @@ $(TESTDATA_CRD_DIR): $(TESTDATA_DIR)
 $(TESTDATA_CRD_DIR)/%.yaml: | $(TESTDATA_CRD_DIR)
 	curl -sSLo $@ https://raw.githubusercontent.com/crossplane/crossplane/$(CROSSPLANE_VERSION)/cluster/charts/crossplane/crds/$*.yaml
 
-$(ENVTEST_ASSETS_DIR)/setup-envtest.sh: $(TESTDATA_DIR)
-	curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
-
 .PHONY: integration_test
-integration_test: fmt vet $(ENVTEST_ASSETS_DIR)/setup-envtest.sh $(CROSSPLANE_CRDS)
+integration_test: fmt vet $(CROSSPLANE_CRDS)
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test -tags=integration -v ./... -coverprofile cover.out
 
 .PHONY: setup_e2e_test
