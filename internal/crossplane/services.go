@@ -22,10 +22,27 @@ type Endpoint struct {
 	Protocol string
 }
 
+type Service string
+
+func (s Service) IsValid() bool {
+	switch s {
+	case RedisService, MariaDBService, MariaDBDatabaseService:
+		return true
+	}
+	return false
+}
+
+var (
+	RedisService           Service = "redis-k8s"
+	MariaDBService         Service = "mariadb-k8s"
+	MariaDBDatabaseService Service = "mariadb-k8s-database"
+)
+
 // ServiceBinder is an interface for service specific implementation for binding,
 // retrieving credentials, etc.
 type ServiceBinder interface {
 	Bind(ctx context.Context, bindingID string) (Credentials, error)
+	Deprovision(ctx context.Context) error
 }
 
 // FinishProvisioner is not currently implemented as provider-helm upgrade is TBD and we need to adjust endpoint retrieval anyway.
@@ -39,11 +56,11 @@ type FinishProvisioner interface {
 func ServiceBinderFactory(c *Crossplane, instance *Instance, logger lager.Logger) (ServiceBinder, error) {
 	serviceName := instance.Labels.ServiceName
 	switch serviceName {
-	case serviceRedis:
+	case RedisService:
 		return NewRedisServiceBinder(c, instance, logger), nil
-	case serviceMariadb:
+	case MariaDBService:
 		return NewMariadbServiceBinder(c, instance, logger), nil
-	case serviceMariadbDatabase:
+	case MariaDBDatabaseService:
 		return NewMariadbDatabaseServiceBinder(c, instance, logger), nil
 	}
 	return nil, fmt.Errorf("service binder %q not implemented", serviceName)
@@ -57,4 +74,12 @@ func findResourceRefs(refs []corev1.ObjectReference, kind string) []corev1.Objec
 		}
 	}
 	return s
+}
+
+// FIXME(mw): in PoC code this marks downstream namespace as deleted. As we want to avoid having to take care of
+//            downstream cluster, we should avoid that. But can we?
+func markNamespaceDeleted(ctx context.Context, c *Crossplane, instanceID string, refs []corev1.ObjectReference) error {
+	c.logger.Debug("mark namespace deleted", lager.Data{"instance-id": instanceID})
+
+	return errors.New("not implemented")
 }

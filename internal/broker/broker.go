@@ -94,6 +94,38 @@ func (b Broker) Provision(ctx context.Context, instanceID, planID string, params
 	return res, nil
 }
 
+func (b Broker) Deprovision(ctx context.Context, instanceID, planID string) (domain.DeprovisionServiceSpec, error) {
+	res := domain.DeprovisionServiceSpec{
+		IsAsync: false,
+	}
+
+	p, err := b.cp.Plan(ctx, planID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	instance, exists, err := b.cp.Instance(ctx, instanceID, p)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+	if !exists {
+		return res, toApiResponseError(ctx, apiresponses.ErrInstanceDoesNotExist)
+	}
+
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+	if err := sb.Deprovision(ctx); err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	if err := b.cp.DeleteInstance(ctx, instance.Composite.GetName(), p); err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+	return res, nil
+}
+
 func (b Broker) Bind(ctx context.Context, instanceID, bindingID, planID string) (domain.Binding, error) {
 	res := domain.Binding{
 		IsAsync: false,

@@ -1,6 +1,9 @@
 package crossplane
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
 
 const (
 	// SynToolsBase is the base domain
@@ -40,7 +43,7 @@ const (
 )
 
 type Labels struct {
-	ServiceName string
+	ServiceName Service
 	ServiceID   string
 	PlanName    string
 	InstanceID  string
@@ -52,7 +55,7 @@ type Labels struct {
 
 func parseLabels(l map[string]string) (*Labels, error) {
 	md := Labels{
-		ServiceName: l[ServiceNameLabel],
+		ServiceName: Service(l[ServiceNameLabel]),
 		ServiceID:   l[ServiceIDLabel],
 		PlanName:    l[PlanNameLabel],
 		InstanceID:  l[InstanceIDLabel],
@@ -61,6 +64,11 @@ func parseLabels(l map[string]string) (*Labels, error) {
 		Deleted:     false,
 	}
 	var err error
+
+	if !md.ServiceName.IsValid() {
+		return nil, fmt.Errorf("service %q not valid", md.ServiceName)
+	}
+
 	md.Bindable, err = parseBoolLabel(l[BindableLabel], true)
 	if err != nil {
 		return nil, err

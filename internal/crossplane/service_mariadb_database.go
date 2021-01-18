@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -29,6 +30,14 @@ const (
 	instanceParamsParentReferenceName = "parent_reference"
 	// instanceSpecParamsParentReferencePath is the path to an instance's parent reference parameter
 	instanceSpecParamsParentReferencePath = instanceSpecParamsPath + "." + instanceParamsParentReferenceName
+)
+
+var (
+	groupVersionKind = schema.GroupVersionKind{
+		Group:   "syn.tools",
+		Version: "v1alpha1",
+		Kind:    "CompositeMariaDBUserInstance",
+	}
 )
 
 // MariadbDatabaseServiceBinder defines a specific Mariadb service with enough data to retrieve connection credentials.
@@ -83,6 +92,11 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 	creds := createCredentials(endpoint, bindingID, pw, msb.instance.Composite.GetName())
 
 	return creds, nil
+}
+
+// Deprovision does nothing for MariaDB DB instances.
+func (msb MariadbDatabaseServiceBinder) Deprovision(ctx context.Context) error {
+	return nil
 }
 
 func (msb MariadbDatabaseServiceBinder) createBinding(ctx context.Context, bindingID, instanceID, parentReference string) (string, error) {
