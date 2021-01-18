@@ -4,6 +4,7 @@ package brokerapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -52,13 +53,13 @@ func TestBrokerAPI_Services(t *testing.T) {
 			name: "returns the catalog successfully",
 			ctx:  context.TODO(),
 			preRunFn: createObjects(context.TODO(), []runtime.Object{
-				newService("1"),
-				newServicePlan("1", "1-1").Composition,
+				newService("1", crossplane.RedisService),
+				newServicePlan("1", "1-1", crossplane.RedisService).Composition,
 			}),
 			want: []domain.Service{
 				{
 					ID:                   "1",
-					Name:                 "testservice",
+					Name:                 string(crossplane.RedisService),
 					Description:          "testservice description",
 					Bindable:             true,
 					InstancesRetrievable: true,
@@ -109,6 +110,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+
 		})
 	}
 }
@@ -165,7 +167,7 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			wantErr: errors.New(`compositions.apiextensions.crossplane.io "1-1" not found (correlation-id: "corrid")`),
 		},
 		{
-			name: "creates an instance",
+			name: "creates a redis instance",
 			args: args{
 				ctx:        ctx,
 				instanceID: "1",
@@ -176,8 +178,8 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				asyncAllowed: true,
 			},
 			preRunFn: createObjects(context.TODO(), []runtime.Object{
-				newService("1"),
-				newServicePlan("1", "1-1").Composition,
+				newService("1", crossplane.RedisService),
+				newServicePlan("1", "1-1", crossplane.RedisService).Composition,
 			}),
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
 			wantErr: nil,
@@ -194,16 +196,55 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				asyncAllowed: true,
 			},
 			preRunFn: func(c client.Client) error {
-				service := newService("1")
-				servicePlan := newServicePlan("1", "1-1")
+				service := newService("1", crossplane.RedisService)
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
 				return createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1", servicePlan),
+					newInstance("1", servicePlan, crossplane.RedisService),
 				})(c)
 			},
 			want:    &domain.ProvisionedServiceSpec{AlreadyExists: true},
+			wantErr: nil,
+		},
+		{
+			name: "creates a mariadb instance",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1",
+				details: domain.ProvisionDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+				asyncAllowed: true,
+			},
+			preRunFn: createObjects(context.TODO(), []runtime.Object{
+				newService("1", crossplane.MariaDBService),
+				newServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+			}),
+			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
+			wantErr: nil,
+		},
+		{
+			name: "creates a mariadb database instance",
+			args: args{
+				ctx:        ctx,
+				instanceID: "2",
+				details: domain.ProvisionDetails{
+					PlanID:        "2-1",
+					ServiceID:     "2",
+					RawParameters: json.RawMessage(`{"parent_reference": "1"}`),
+				},
+				asyncAllowed: true,
+			},
+			preRunFn: createObjects(context.TODO(), []runtime.Object{
+				newService("1", crossplane.MariaDBService),
+				newServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+				newService("2", crossplane.MariaDBDatabaseService),
+				newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService).Composition,
+			}),
+			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
 			wantErr: nil,
 		},
 	}
@@ -266,13 +307,13 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			preRunFn: func(c client.Client) error {
-				service := newService("1")
-				servicePlan := newServicePlan("1", "1-1")
+				service := newService("1", crossplane.RedisService)
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
 				return createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1", servicePlan),
+					newInstance("1", servicePlan, crossplane.RedisService),
 				})(c)
 			},
 			want: &domain.LastOperation{
@@ -291,10 +332,10 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			preRunFn: func(c client.Client) error {
-				service := newService("1")
-				servicePlan := newServicePlan("1", "1-1")
+				service := newService("1", crossplane.RedisService)
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newInstance("1", servicePlan)
+				instance := newInstance("1", servicePlan, crossplane.RedisService)
 				err := createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
@@ -322,10 +363,10 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			preRunFn: func(c client.Client) error {
-				service := newService("1")
-				servicePlan := newServicePlan("1", "1-1")
+				service := newService("1", crossplane.RedisService)
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newInstance("1", servicePlan)
+				instance := newInstance("1", servicePlan, crossplane.RedisService)
 				err := createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
@@ -437,18 +478,18 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			preRunFn: func(c client.Client) error {
-				servicePlan := newServicePlan("1", "1-1")
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 				return createObjects(context.TODO(), []runtime.Object{
-					newService("1"),
+					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newInstance("1-1-1", servicePlan),
+					newInstance("1-1-1", servicePlan, crossplane.RedisService),
 				})(c)
 			},
 			want:    nil,
 			wantErr: errors.New(`instance is being updated and cannot be retrieved (correlation-id: "corrid")`),
 		},
 		{
-			name: "creates an instance and binds it",
+			name: "creates a redis instance and binds it",
 			args: args{
 				ctx:        ctx,
 				instanceID: "1-1-1",
@@ -459,11 +500,11 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			preRunFn: func(c client.Client) error {
-				servicePlan := newServicePlan("1", "1-1")
-				instance := newInstance("1-1-1", servicePlan)
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService)
 				err := createObjects(context.TODO(), []runtime.Object{
 					newNamespace(testNamespace),
-					newService("1"),
+					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
 					instance,
 					newSecret(testNamespace, "creds", map[string]string{
@@ -485,6 +526,40 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			wantErr: nil,
+		},
+		{
+			name: "creates a mariadb instance and tries to bind it",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.BindDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService)
+				err := createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.MariaDBService),
+					servicePlan.Composition,
+					instance,
+					newSecret(testNamespace, "creds", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+					}),
+				})(c)
+				if err != nil {
+					return err
+				}
+
+				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+			},
+			want:    nil,
+			wantErr: errors.New(`FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation. (correlation-id: "corrid")`),
 		},
 	}
 
@@ -538,17 +613,17 @@ func updateInstanceConditions(ctx context.Context, c client.Client, servicePlan 
 	return c.Update(ctx, cmp)
 }
 
-func newService(serviceID string) *xv1.CompositeResourceDefinition {
+func newService(serviceID string, serviceName crossplane.Service) *xv1.CompositeResourceDefinition {
 	return &xv1.CompositeResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "service",
 			APIVersion: "syn.tools/v1alpha1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "testservice",
+			Name: "testservice" + serviceID,
 			Labels: map[string]string{
 				crossplane.ServiceIDLabel:   serviceID,
-				crossplane.ServiceNameLabel: "testservice",
+				crossplane.ServiceNameLabel: string(serviceName),
 				crossplane.BindableLabel:    "true",
 				crossplane.UpdatableLabel:   "true",
 			},
@@ -568,7 +643,7 @@ func newService(serviceID string) *xv1.CompositeResourceDefinition {
 	}
 }
 
-func newServicePlan(serviceID string, planID string) *crossplane.Plan {
+func newServicePlan(serviceID string, planID string, serviceName crossplane.Service) *crossplane.Plan {
 	name := "small"
 	return &crossplane.Plan{
 		Labels: &crossplane.Labels{
@@ -583,7 +658,7 @@ func newServicePlan(serviceID string, planID string) *crossplane.Plan {
 				Name: planID,
 				Labels: map[string]string{
 					crossplane.ServiceIDLabel:   serviceID,
-					crossplane.ServiceNameLabel: "testservice",
+					crossplane.ServiceNameLabel: string(serviceName),
 					crossplane.PlanNameLabel:    name,
 					crossplane.BindableLabel:    "false",
 				},
@@ -603,7 +678,7 @@ func newServicePlan(serviceID string, planID string) *crossplane.Plan {
 	}
 }
 
-func newInstance(instanceID string, plan *crossplane.Plan) *composite.Unstructured {
+func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.Service) *composite.Unstructured {
 	gvk, _ := plan.GVK()
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
 	cmp.SetName(instanceID)
@@ -612,7 +687,7 @@ func newInstance(instanceID string, plan *crossplane.Plan) *composite.Unstructur
 	})
 	cmp.SetLabels(map[string]string{
 		crossplane.PlanNameLabel:    plan.Labels.PlanName,
-		crossplane.ServiceNameLabel: "redis-k8s",
+		crossplane.ServiceNameLabel: string(serviceName),
 	})
 	cmp.SetResourceReferences([]corev1.ObjectReference{
 		{

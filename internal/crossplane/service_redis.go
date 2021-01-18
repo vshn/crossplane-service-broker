@@ -36,6 +36,11 @@ func (rsb RedisServiceBinder) Bind(ctx context.Context, bindingID string) (Crede
 	return rsb.GetBinding(ctx, bindingID)
 }
 
+// Deprovision removes the downstream namespace.
+func (rsb RedisServiceBinder) Deprovision(ctx context.Context) error {
+	return markNamespaceDeleted(ctx, rsb.cp, rsb.instanceID, rsb.resources)
+}
+
 // GetBinding always returns the same credentials for Redis
 func (rsb RedisServiceBinder) GetBinding(ctx context.Context, _ string) (Credentials, error) {
 	creds := make(Credentials)

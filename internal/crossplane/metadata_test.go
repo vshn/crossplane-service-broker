@@ -14,17 +14,26 @@ func Test_parseLabels(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:   "parses empty labels successfully",
-			labels: map[string]string{},
+			name:    "requires valid ServiceName",
+			labels:  map[string]string{},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "parses empty labels successfully",
+			labels: map[string]string{
+				ServiceNameLabel: serviceRedis,
+			},
 			want: &Labels{
-				Bindable: true,
+				ServiceName: serviceRedis,
+				Bindable:    true,
 			},
 			wantErr: false,
 		},
 		{
 			name: "parses labels successfully",
 			labels: map[string]string{
-				ServiceNameLabel: "sname",
+				ServiceNameLabel: serviceRedis,
 				ServiceIDLabel:   "sid",
 				PlanNameLabel:    "pname",
 				InstanceIDLabel:  "iid",
@@ -34,7 +43,7 @@ func Test_parseLabels(t *testing.T) {
 				DeletedLabel:     "true",
 			},
 			want: &Labels{
-				ServiceName: "sname",
+				ServiceName: serviceRedis,
 				ServiceID:   "sid",
 				PlanName:    "pname",
 				InstanceID:  "iid",
@@ -53,6 +62,7 @@ func Test_parseLabels(t *testing.T) {
 				assert.Error(t, err)
 				return
 			}
+			assert.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}

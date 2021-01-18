@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -35,7 +38,7 @@ func NewMariadbServiceBinder(c *Crossplane, instance *Instance, logger lager.Log
 	}
 }
 
-// Bind is not implemented.
+// Bind on a MariaDB instance doesn't work - only a database referencing an instance can be bound.
 func (msb MariadbServiceBinder) Bind(_ context.Context, _ string) (Credentials, error) {
 	return nil, apiresponses.NewFailureResponseBuilder(
 		fmt.Errorf("service MariaDB Galera Cluster is not bindable. "+
@@ -44,6 +47,30 @@ func (msb MariadbServiceBinder) Bind(_ context.Context, _ string) (Credentials, 
 		http.StatusUnprocessableEntity,
 		"binding-not-supported",
 	).WithErrorKey("BindingNotSupported").Build()
+}
+
+// Deprovision removes the downstream namespace and checks if no DBs exist for this instance anymore.
+func (msb MariadbServiceBinder) Deprovision(ctx context.Context) error {
+	instanceList := &unstructured.UnstructuredList{}
+	instanceList.SetGroupVersionKind(groupVersionKind)
+	instanceList.SetKind("CompositeMariaDBDatabaseInstanceList")
+	if err := msb.cp.client.List(ctx, instanceList, client.MatchingLabels{
+		ParentIDLabel: msb.instanceID,
+	}); err != nil {
+		return err
+	}
+	if len(instanceList.Items) > 0 {
+		var instances []string
+		for _, instance := range instanceList.Items {
+			instances = append(instances, instance.GetName())
+		}
+		return apiresponses.NewFailureResponseBuilder(
+			fmt.Errorf("instance is still in use by %q", strings.Join(instances, ", ")),
+			http.StatusUnprocessableEntity,
+			"deprovision-instance-in-use",
+		).WithErrorKey("InUseError").Build()
+	}
+	return markNamespaceDeleted(ctx, msb.cp, msb.instanceID, msb.resources)
 }
 
 // FIXME(mw): FinishProvision might be needed, but probably not.

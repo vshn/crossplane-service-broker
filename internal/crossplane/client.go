@@ -29,14 +29,6 @@ import (
 // errInstanceNotFound is an instance doesn't exist
 var errInstanceNotFound = errors.New("instance not found")
 
-var (
-	groupVersionKind = schema.GroupVersionKind{
-		Group:   "syn.tools",
-		Version: "v1alpha1",
-		Kind:    "CompositeMariaDBUserInstance",
-	}
-)
-
 // Crossplane client to access crossplane resources.
 type Crossplane struct {
 	client            k8sclient.Client
@@ -245,6 +237,19 @@ func (cp Crossplane) CreateInstance(ctx context.Context, id string, plan *Plan, 
 	cmp.SetLabels(l)
 	cp.logger.Debug("create-instance", lager.Data{"instance": cmp})
 	return cp.client.Create(ctx, cmp)
+}
+
+// DeleteInstance deletes a service instance
+func (cp *Crossplane) DeleteInstance(ctx context.Context, instanceName string, plan *Plan) error {
+	gvk, err := plan.GVK()
+	if err != nil {
+		return err
+	}
+
+	cmp := composite.New(composite.WithGroupVersionKind(gvk))
+	cmp.SetName(instanceName)
+
+	return cp.client.Delete(ctx, cmp)
 }
 
 func (cp *Crossplane) getCredentials(ctx context.Context, name string) (*corev1.Secret, error) {
