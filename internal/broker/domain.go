@@ -21,7 +21,7 @@ func newService(service *crossplane.ServiceXRD, plans []domain.ServicePlan, logg
 	meta := &domain.ServiceMetadata{}
 	if err := json.Unmarshal([]byte(service.Metadata), meta); err != nil {
 		logger.Error("parse-metadata", err)
-		meta.DisplayName = service.Labels.ServiceName
+		meta.DisplayName = string(service.Labels.ServiceName)
 	}
 
 	var tags []string
@@ -31,7 +31,7 @@ func newService(service *crossplane.ServiceXRD, plans []domain.ServicePlan, logg
 
 	return domain.Service{
 		ID:                   service.Labels.ServiceID,
-		Name:                 service.Labels.ServiceName,
+		Name:                 string(service.Labels.ServiceName),
 		Description:          service.Description,
 		Bindable:             service.Labels.Bindable,
 		InstancesRetrievable: true,
