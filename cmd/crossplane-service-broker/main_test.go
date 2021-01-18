@@ -33,17 +33,28 @@ func Test_readAppConfig(t *testing.T) {
 			config: nil,
 			err:    "OSB_PASSWORD is required",
 		},
+		"namespace required": {
+			env: map[string]string{
+				"OSB_SERVICE_IDS": "1,2,3",
+				"OSB_USERNAME":    "user",
+				"OSB_PASSWORD":    "pw",
+			},
+			config: nil,
+			err:    "OSB_NAMESPACE is required",
+		},
 		"defaults configured": {
 			env: map[string]string{
 				"OSB_SERVICE_IDS": "1,2,3",
 				"OSB_USERNAME":    "user",
 				"OSB_PASSWORD":    "pw",
+				"OSB_NAMESPACE":   "test",
 			},
 			config: &appConfig{
 				serviceIDs:     []string{"1", "2", "3"},
 				listenAddr:     ":8080",
 				username:       "user",
 				password:       "pw",
+				namespace:      "test",
 				readTimeout:    180 * time.Second,
 				writeTimeout:   180 * time.Second,
 				maxHeaderBytes: 1 << 20,

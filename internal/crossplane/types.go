@@ -1,13 +1,15 @@
 package crossplane
 
 import (
+	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
-	xv1beta1 "github.com/crossplane/crossplane/apis/apiextensions/v1beta1"
+	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type Plan struct {
-	Composition *xv1beta1.Composition
+	Composition *xv1.Composition
 	Labels      *Labels
 	Metadata    string
 	Tags        string
@@ -22,7 +24,7 @@ func (p Plan) GVK() (schema.GroupVersionKind, error) {
 	return groupVersion.WithKind(p.Composition.Spec.CompositeTypeRef.Kind), nil
 }
 
-func newPlan(c *xv1beta1.Composition) (*Plan, error) {
+func newPlan(c *xv1.Composition) (*Plan, error) {
 	l, err := parseLabels(c.Labels)
 	if err != nil {
 		return nil, err
@@ -37,8 +39,12 @@ func newPlan(c *xv1beta1.Composition) (*Plan, error) {
 }
 
 type Instance struct {
-	Composition *composite.Unstructured
-	Labels      *Labels
+	Composite *composite.Unstructured
+	Labels    *Labels
+}
+
+func (i Instance) Ready() bool {
+	return i.Composite.GetCondition(xrv1.TypeReady).Status == corev1.ConditionTrue
 }
 
 func newInstance(c *composite.Unstructured) (*Instance, error) {
@@ -47,7 +53,7 @@ func newInstance(c *composite.Unstructured) (*Instance, error) {
 		return nil, err
 	}
 	return &Instance{
-		Composition: c,
-		Labels:      l,
+		Composite: c,
+		Labels:    l,
 	}, nil
 }
