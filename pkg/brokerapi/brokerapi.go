@@ -6,6 +6,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
+	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	"github.com/pivotal-cf/brokerapi/v7/middlewares"
 	"k8s.io/client-go/rest"
 
@@ -43,8 +44,14 @@ func (b BrokerAPI) Services(ctx context.Context) ([]domain.Service, error) {
 // Provision creates a new service instance
 //   PUT /v2/service_instances/{instance_id}
 func (b BrokerAPI) Provision(ctx context.Context, instanceID string, details domain.ProvisionDetails, asyncAllowed bool) (domain.ProvisionedServiceSpec, error) {
-	spec := domain.ProvisionedServiceSpec{}
-	return spec, errors.New("not implemented")
+	logger := requestScopedLogger(ctx, b.logger).WithData(lager.Data{"instance-id": instanceID})
+	logger.Info("provision-instance", lager.Data{"plan-id": details.PlanID, "service-id": details.ServiceID})
+
+	if !asyncAllowed {
+		return domain.ProvisionedServiceSpec{}, apiresponses.ErrAsyncRequired
+	}
+
+	return b.broker.Provision(ctx, instanceID, details.PlanID, details.RawParameters)
 }
 
 // Deprovision deletes an existing service instance

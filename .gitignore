@@ -2,9 +2,12 @@
 .vscode
 /kubeconfig
 __debug_bin
-testdata/
+testdata/bin/
+testdata/crds/*.yaml
+!testdata/crds/compositeinstances.syn.tools.yaml
 node_modules/
 e2e/debug/
 crossplane-service-broker
 !cmd/crossplane-service-broker
 cover.out
+vendor/

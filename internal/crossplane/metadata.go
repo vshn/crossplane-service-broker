@@ -23,6 +23,10 @@ const (
 	ServiceIDLabel = SynToolsBase + "/id"
 	// PlanNameLabel of the instance
 	PlanNameLabel = SynToolsBase + "/plan"
+	// ClusterLabel name of the cluster this instance is deployed to
+	ClusterLabel = SynToolsBase + "/cluster"
+	// SLALabel SLA level for this instance
+	SLALabel = SynToolsBase + "/sla"
 	// InstanceIDLabel of the instance
 	InstanceIDLabel = SynToolsBase + "/instance"
 	// ParentIDLabel of the instance
