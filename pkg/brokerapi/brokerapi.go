@@ -20,8 +20,8 @@ type BrokerAPI struct {
 	logger lager.Logger
 }
 
-func New(serviceIDs []string, config *rest.Config, logger lager.Logger) (*BrokerAPI, error) {
-	cp, err := crossplane.New(serviceIDs, config, logger.WithData(lager.Data{"module": "crossplane"}))
+func New(serviceIDs []string, namespace string, config *rest.Config, logger lager.Logger) (*BrokerAPI, error) {
+	cp, err := crossplane.New(serviceIDs, namespace, config, logger.WithData(lager.Data{"module": "crossplane"}))
 	if err != nil {
 		return nil, err
 	}
@@ -78,15 +78,19 @@ func (b BrokerAPI) Update(ctx context.Context, instanceID string, details domain
 // LastOperation fetches last operation state for a service instance
 //   GET /v2/service_instances/{instance_id}/last_operation
 func (b BrokerAPI) LastOperation(ctx context.Context, instanceID string, details domain.PollDetails) (domain.LastOperation, error) {
-	spec := domain.LastOperation{}
-	return spec, errors.New("not implemented")
+	logger := requestScopedLogger(ctx, b.logger).WithData(lager.Data{"instance-id": instanceID})
+	logger.Info("last-operation", lager.Data{"operation-data": details.OperationData, "plan-id": details.PlanID, "service-id": details.ServiceID})
+
+	return b.broker.LastOperation(ctx, instanceID, details.PlanID)
 }
 
 // Bind creates a new service binding
 //   PUT /v2/service_instances/{instance_id}/service_bindings/{binding_id}
 func (b BrokerAPI) Bind(ctx context.Context, instanceID, bindingID string, details domain.BindDetails, asyncAllowed bool) (domain.Binding, error) {
-	spec := domain.Binding{}
-	return spec, errors.New("not implemented")
+	logger := requestScopedLogger(ctx, b.logger).WithData(lager.Data{"instance-id": instanceID, "binding-id": bindingID})
+	logger.Info("bind-instance", lager.Data{"plan-id": details.PlanID, "service-id": details.ServiceID})
+
+	return b.broker.Bind(ctx, instanceID, bindingID, details.PlanID)
 }
 
 // Unbind deletes an existing service binding

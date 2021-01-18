@@ -30,6 +30,7 @@ func Test_parseLabels(t *testing.T) {
 				InstanceIDLabel:  "iid",
 				ParentIDLabel:    "pid",
 				BindableLabel:    "false",
+				UpdatableLabel:   "true",
 				DeletedLabel:     "true",
 			},
 			want: &Labels{
@@ -39,6 +40,7 @@ func Test_parseLabels(t *testing.T) {
 				InstanceID:  "iid",
 				ParentID:    "pid",
 				Bindable:    false,
+				Updatable:   true,
 				Deleted:     true,
 			},
 			wantErr: false,

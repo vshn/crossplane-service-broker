@@ -3,8 +3,10 @@ package broker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"code.cloudfoundry.org/lager"
+	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 
@@ -63,32 +65,114 @@ func (b Broker) servicePlans(ctx context.Context, serviceIDs []string) ([]domain
 // Provision creates a new service instance.
 // TODO(mw): serviceID is not required, sounds wrong. Should we check if service exists here? and plan belongs to service?
 func (b Broker) Provision(ctx context.Context, instanceID, planID string, params json.RawMessage) (domain.ProvisionedServiceSpec, error) {
-	spec := domain.ProvisionedServiceSpec{}
+	res := domain.ProvisionedServiceSpec{}
 
 	p, err := b.cp.Plan(ctx, planID)
 	if err != nil {
-		return spec, toApiResponseError(ctx, err)
+		return res, toApiResponseError(ctx, err)
 	}
 
 	_, exists, err := b.cp.Instance(ctx, instanceID, p)
 	if err != nil {
-		return spec, toApiResponseError(ctx, err)
+		return res, toApiResponseError(ctx, err)
 	}
 	if exists {
 		// To avoid having to compare parameters,
 		// only instances without any parameters are considered to be equal to another (i.e. existing)
 		if params == nil {
-			spec.AlreadyExists = true
-			return spec, nil
+			res.AlreadyExists = true
+			return res, nil
 		}
-		return spec, apiresponses.ErrInstanceAlreadyExists
+		return res, toApiResponseError(ctx, apiresponses.ErrInstanceAlreadyExists)
 	}
 
 	err = b.cp.CreateInstance(ctx, instanceID, p, params)
 	if err != nil {
-		return spec, toApiResponseError(ctx, err)
+		return res, toApiResponseError(ctx, err)
 	}
 
-	spec.IsAsync = true
-	return spec, nil
+	res.IsAsync = true
+	return res, nil
+}
+
+func (b Broker) Bind(ctx context.Context, instanceID, bindingID, planID string) (domain.Binding, error) {
+	res := domain.Binding{
+		IsAsync: false,
+	}
+
+	p, err := b.cp.Plan(ctx, planID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	instance, exists, err := b.cp.Instance(ctx, instanceID, p)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+	if !exists {
+		return res, toApiResponseError(ctx, apiresponses.ErrInstanceDoesNotExist)
+	}
+	if !instance.Ready() {
+		return res, toApiResponseError(ctx, apiresponses.ErrConcurrentInstanceAccess)
+	}
+
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	if fp, ok := sb.(crossplane.FinishProvisioner); ok {
+		if err := fp.FinishProvision(ctx); err != nil {
+			return res, toApiResponseError(ctx, err)
+		}
+	}
+
+	creds, err := sb.Bind(ctx, bindingID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	res.Credentials = creds
+
+	return res, nil
+}
+
+func (b Broker) LastOperation(ctx context.Context, instanceID, planID string) (domain.LastOperation, error) {
+	res := domain.LastOperation{}
+
+	p, err := b.cp.Plan(ctx, planID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	instance, exists, err := b.cp.Instance(ctx, instanceID, p)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+	if !exists {
+		return res, toApiResponseError(ctx, apiresponses.ErrInstanceDoesNotExist)
+	}
+
+	condition := instance.Composite.GetCondition(xrv1.TypeReady)
+	res.Description = string(condition.Reason)
+
+	switch condition.Reason {
+	case xrv1.ReasonAvailable:
+		res.State = domain.Succeeded
+		sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+		if err != nil {
+			return res, toApiResponseError(ctx, err)
+		}
+		if fp, ok := sb.(crossplane.FinishProvisioner); ok {
+			if err := fp.FinishProvision(ctx); err != nil {
+				return res, toApiResponseError(ctx, err)
+			}
+		}
+	case xrv1.ReasonCreating:
+		res.State = domain.InProgress
+	default:
+		b.logger.Error("instance-condition", errors.New("instance in failed state"), lager.Data{"condition": condition})
+		res.State = domain.Failed
+	}
+	return res, nil
 }

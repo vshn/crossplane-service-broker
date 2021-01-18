@@ -73,7 +73,8 @@ Example VSCode run configuration:
         "KUBECONFIG": "path/to/kubeconfig",
         "OSB_USERNAME": "test",
         "OSB_PASSWORD": "TEST",
-        "OSB_SERVICE_IDS": "PROVIDE-SERVICE-UUIDS-HERE"
+        "OSB_SERVICE_IDS": "PROVIDE-SERVICE-UUIDS-HERE",
+        "OSB_NAMESPACE": "test"
       },
       "args": []
     }

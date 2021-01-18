@@ -26,7 +26,7 @@ func newService(service *crossplane.ServiceXRD, plans []domain.ServicePlan, logg
 
 	var tags []string
 	if err := json.Unmarshal([]byte(service.Tags), &tags); err != nil {
-		logger.Error("parse-tags", err)
+		logger.Error("parse-tags", err, lager.Data{"service": service.XRD.Name})
 	}
 
 	return domain.Service{
@@ -47,7 +47,7 @@ func newServicePlan(plan *crossplane.Plan, logger lager.Logger) domain.ServicePl
 	planName := plan.Labels.PlanName
 	meta := &domain.ServicePlanMetadata{}
 	if err := json.Unmarshal([]byte(plan.Metadata), meta); err != nil {
-		logger.Error("parse-metadata", err)
+		logger.Error("parse-metadata", err, lager.Data{"plan": plan.Composition.Name})
 		meta.DisplayName = planName
 	}
 	return domain.ServicePlan{

@@ -40,13 +40,13 @@ func main() {
 		cancel()
 	}()
 
-	if err := run(ctx, signalChan, logger); err != nil {
+	if err := run(signalChan, logger); err != nil {
 		logger.Error("application  run failed", err)
 		os.Exit(exitCodeErr)
 	}
 }
 
-func run(ctx context.Context, signalChan chan os.Signal, logger lager.Logger) error {
+func run(signalChan chan os.Signal, logger lager.Logger) error {
 	cfg, err := readAppConfig(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("unable to read app env: %w", err)
@@ -59,7 +59,7 @@ func run(ctx context.Context, signalChan chan os.Signal, logger lager.Logger) er
 		return err
 	}
 
-	b, err := brokerapi.New(cfg.serviceIDs, config, logger.WithData(lager.Data{"component": "brokerapi"}))
+	b, err := brokerapi.New(cfg.serviceIDs, cfg.namespace, config, logger.WithData(lager.Data{"component": "brokerapi"}))
 	if err != nil {
 		return err
 	}
@@ -109,6 +109,7 @@ type appConfig struct {
 	listenAddr     string
 	username       string
 	password       string
+	namespace      string
 	readTimeout    time.Duration
 	writeTimeout   time.Duration
 	maxHeaderBytes int
@@ -120,6 +121,7 @@ func readAppConfig(getEnv func(string) string) (*appConfig, error) {
 		serviceIDs: strings.Split(getEnv("OSB_SERVICE_IDS"), ","),
 		username:   getEnv("OSB_USERNAME"),
 		password:   getEnv("OSB_PASSWORD"),
+		namespace:  getEnv("OSB_NAMESPACE"),
 		listenAddr: getEnv("OSB_HTTP_LISTEN_ADDR"),
 	}
 
@@ -135,6 +137,10 @@ func readAppConfig(getEnv func(string) string) (*appConfig, error) {
 	}
 	if cfg.password == "" {
 		return nil, errors.New("OSB_PASSWORD is required")
+	}
+
+	if cfg.namespace == "" {
+		return nil, errors.New("OSB_NAMESPACE is required")
 	}
 
 	if cfg.listenAddr == "" {
