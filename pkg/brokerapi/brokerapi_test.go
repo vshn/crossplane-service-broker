@@ -60,7 +60,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 					Bindable:             true,
 					InstancesRetrievable: true,
 					BindingsRetrievable:  true,
-					PlanUpdatable:        false,
+					PlanUpdatable:        true,
 					Plans: []domain.ServicePlan{
 						{
 							ID:          "1-1",
@@ -245,6 +245,7 @@ func newService(serviceID string) *xv1.CompositeResourceDefinition {
 				crossplane.ServiceIDLabel:   serviceID,
 				crossplane.ServiceNameLabel: "testservice",
 				crossplane.BindableLabel:    "true",
+				crossplane.UpdatableLabel:   "true",
 			},
 			Annotations: map[string]string{
 				crossplane.DescriptionAnnotation: "testservice description",

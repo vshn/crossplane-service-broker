@@ -36,7 +36,7 @@ func newService(service *crossplane.ServiceXRD, plans []domain.ServicePlan, logg
 		Bindable:             service.Labels.Bindable,
 		InstancesRetrievable: true,
 		BindingsRetrievable:  service.Labels.Bindable,
-		PlanUpdatable:        false,
+		PlanUpdatable:        service.Labels.Updatable,
 		Plans:                plans,
 		Metadata:             meta,
 		Tags:                 tags,

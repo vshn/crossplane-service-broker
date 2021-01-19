@@ -33,6 +33,8 @@ const (
 	ParentIDLabel = SynToolsBase + "/parent"
 	// BindableLabel of the instance
 	BindableLabel = SynToolsBase + "/bindable"
+	// UpdatableLabel of the instance
+	UpdatableLabel = SynToolsBase + "/updatable"
 	// DeletedLabel marks an object as deleted to clean up
 	DeletedLabel = SynToolsBase + "/deleted"
 )
@@ -44,6 +46,7 @@ type Labels struct {
 	InstanceID  string
 	ParentID    string
 	Bindable    bool
+	Updatable   bool
 	Deleted     bool
 }
 
@@ -59,6 +62,10 @@ func parseLabels(l map[string]string) (*Labels, error) {
 	}
 	var err error
 	md.Bindable, err = parseBoolLabel(l[BindableLabel], true)
+	if err != nil {
+		return nil, err
+	}
+	md.Updatable, err = parseBoolLabel(l[UpdatableLabel], false)
 	if err != nil {
 		return nil, err
 	}
