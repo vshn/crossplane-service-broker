@@ -106,17 +106,11 @@ lint_yaml: $(YAML_FILES)
 docs-serve:
 	$(ANTORA_PREVIEW_CMD)
 
-$(TESTDATA_DIR):
-	mkdir $(TESTDATA_DIR)
-
-$(TESTBIN_DIR): $(TESTDATA_DIR)
+$(TESTBIN_DIR):
 	mkdir $(TESTBIN_DIR)
 
-$(TESTDATA_CRD_DIR): $(TESTDATA_DIR)
-	mkdir $(TESTDATA_CRD_DIR)
-
 # TODO(mw): something with this target is off, $@ should be used instead of $*.yaml but I can't seem to make it work.
-$(TESTDATA_CRD_DIR)/%.yaml: | $(TESTDATA_CRD_DIR)
+$(TESTDATA_CRD_DIR)/%.yaml:
 	curl -sSLo $@ https://raw.githubusercontent.com/crossplane/crossplane/$(CROSSPLANE_VERSION)/cluster/charts/crossplane/crds/$*.yaml
 
 .PHONY: integration_test
