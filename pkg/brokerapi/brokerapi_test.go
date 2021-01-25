@@ -257,7 +257,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 		preRunFn preRunFunc
 	}{
 		{
-			name: "returns failed state on unknown condition",
+			name: "returns in progress state on unknown condition",
 			args: args{
 				ctx:        ctx,
 				instanceID: "1",
@@ -276,8 +276,8 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				})(c)
 			},
 			want: &domain.LastOperation{
-				Description: "",
-				State:       domain.Failed,
+				Description: "Unknown",
+				State:       domain.InProgress,
 			},
 			wantErr: nil,
 		},
@@ -340,6 +340,37 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 			want: &domain.LastOperation{
 				Description: string(xrv1.ReasonAvailable),
 				State:       domain.Succeeded,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "returns failed on unavailable",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1",
+				details: domain.PollDetails{
+					PlanID: "1-1",
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				service := newService("1")
+				servicePlan := newServicePlan("1", "1-1")
+
+				instance := newInstance("1", servicePlan)
+				err := createObjects(context.TODO(), []runtime.Object{
+					service,
+					servicePlan.Composition,
+					instance,
+				})(c)
+				if err != nil {
+					return err
+				}
+
+				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonUnavailable)
+			},
+			want: &domain.LastOperation{
+				Description: string(xrv1.ReasonUnavailable),
+				State:       domain.Failed,
 			},
 			wantErr: nil,
 		},
