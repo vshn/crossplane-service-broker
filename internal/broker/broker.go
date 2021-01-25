@@ -3,7 +3,6 @@ package broker
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -154,7 +153,11 @@ func (b Broker) LastOperation(ctx context.Context, instanceID, planID string) (d
 	}
 
 	condition := instance.Composite.GetCondition(xrv1.TypeReady)
-	res.Description = string(condition.Reason)
+	res.Description = "Unknown"
+	if desc := string(condition.Reason); len(desc) > 0 {
+		res.Description = desc
+	}
+	res.State = domain.InProgress
 
 	switch condition.Reason {
 	case xrv1.ReasonAvailable:
@@ -168,10 +171,12 @@ func (b Broker) LastOperation(ctx context.Context, instanceID, planID string) (d
 				return res, toApiResponseError(ctx, err)
 			}
 		}
+		b.logger.Info("provision-succeeded", lager.Data{"reason": condition.Reason, "message": condition.Message})
 	case xrv1.ReasonCreating:
 		res.State = domain.InProgress
-	default:
-		b.logger.Error("instance-condition", errors.New("instance in failed state"), lager.Data{"condition": condition})
+		b.logger.Info("provision-in-progress", lager.Data{"reason": condition.Reason, "message": condition.Message})
+	case xrv1.ReasonUnavailable, xrv1.ReasonDeleting:
+		b.logger.Info("provision-failed", lager.Data{"reason": condition.Reason, "message": condition.Message})
 		res.State = domain.Failed
 	}
 	return res, nil
