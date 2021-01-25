@@ -42,6 +42,7 @@ var (
 // retrieving credentials, etc.
 type ServiceBinder interface {
 	Bind(ctx context.Context, bindingID string) (Credentials, error)
+	Unbind(ctx context.Context, bindingID string) error
 	Deprovision(ctx context.Context) error
 }
 

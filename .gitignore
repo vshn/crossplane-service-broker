@@ -4,7 +4,7 @@
 __debug_bin
 testdata/bin/
 testdata/crds/*.yaml
-!testdata/crds/compositeinstances.syn.tools.yaml
+!testdata/crds/*.syn.tools.yaml
 node_modules/
 e2e/debug/
 crossplane-service-broker

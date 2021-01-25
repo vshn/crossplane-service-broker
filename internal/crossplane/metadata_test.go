@@ -22,10 +22,10 @@ func Test_parseLabels(t *testing.T) {
 		{
 			name: "parses empty labels successfully",
 			labels: map[string]string{
-				ServiceNameLabel: serviceRedis,
+				ServiceNameLabel: string(RedisService),
 			},
 			want: &Labels{
-				ServiceName: serviceRedis,
+				ServiceName: RedisService,
 				Bindable:    true,
 			},
 			wantErr: false,
@@ -33,7 +33,7 @@ func Test_parseLabels(t *testing.T) {
 		{
 			name: "parses labels successfully",
 			labels: map[string]string{
-				ServiceNameLabel: serviceRedis,
+				ServiceNameLabel: string(RedisService),
 				ServiceIDLabel:   "sid",
 				PlanNameLabel:    "pname",
 				InstanceIDLabel:  "iid",
@@ -43,7 +43,7 @@ func Test_parseLabels(t *testing.T) {
 				DeletedLabel:     "true",
 			},
 			want: &Labels{
-				ServiceName: serviceRedis,
+				ServiceName: RedisService,
 				ServiceID:   "sid",
 				PlanName:    "pname",
 				InstanceID:  "iid",

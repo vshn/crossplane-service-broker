@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -15,11 +16,10 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	serviceMariadbDatabase = "mariadb-k8s-database"
-
 	planName   = "mariadb-user"
 	secretName = "%s-password"
 
@@ -94,8 +94,30 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 	return creds, nil
 }
 
+// Unbind deletes the created User and Grant.
+func (msb MariadbDatabaseServiceBinder) Unbind(ctx context.Context, bindingID string) error {
+	cmp := composite.New(composite.WithGroupVersionKind(groupVersionKind))
+	cmp.SetName(bindingID)
+	if err := msb.cp.client.Delete(ctx, cmp, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
+		return err
+	}
+
+	// TODO: figure out a better way to delete the password secret
+	//       option a) use Watch on resourceRefs of composite and wait until User/Grant are both deleted
+	//       option b) https://github.com/crossplane/crossplane/issues/1612 is implemented by crossplane
+	// If we delete the secret too quickly, the provider-sql can't deprovision the user
+	time.Sleep(5 * time.Second)
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf(secretName, bindingID),
+			Namespace: msb.cp.namespace,
+		},
+	}
+	return msb.cp.client.Delete(ctx, secret)
+}
+
 // Deprovision does nothing for MariaDB DB instances.
-func (msb MariadbDatabaseServiceBinder) Deprovision(ctx context.Context) error {
+func (msb MariadbDatabaseServiceBinder) Deprovision(_ context.Context) error {
 	return nil
 }
 

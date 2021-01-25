@@ -138,6 +138,20 @@ To remove the local KIND cluster and other resources, run
 make clean
 ```
 
+## Integration tests
+
+The integration tests aren't very clever yet and will need some improvements to catch issues.
+They set the boundary at Kubernetes and avoid therefore the need to have a working crossplane installation with
+all the custom resources necessary set up.
+
+This means that certain kinds of bugs can't be catched (interaction between crossplane provisioner and this code).
+
+All integration tests are currently within the `brokerapi` package. [`envtest`](https://book.kubebuilder.io/reference/envtest.html) is used
+to setup a Kubernetes API server, and an etcd instance. Public CRDs from crossplane are being downloaded on first run, while
+the CRDs for this service broker are manually copied in and live within `testdata/crds/*.syn.tools.yaml`.
+
+If tests for CRDs within the `syn.tools` API group are written, ensure the corresponding CRD definition is within the aforementioned directory.
+
 [build]: https://github.com/vshn/crossplane-service-broker/actions?query=workflow%3APull%20Request
 [releases]: https://github.com/vshn/crossplane-service-broker/releases
 [license]: https://github.com/vshn/crossplane-service-broker/blob/master/LICENSE

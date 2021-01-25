@@ -9,10 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-const (
-	serviceRedis = "redis-k8s"
-)
-
 // RedisServiceBinder defines a specific redis service with enough data to retrieve connection credentials.
 type RedisServiceBinder struct {
 	instanceID string
@@ -34,6 +30,11 @@ func NewRedisServiceBinder(c *Crossplane, instance *Instance, logger lager.Logge
 // Bind retrieves the necessary external IP, password and ports.
 func (rsb RedisServiceBinder) Bind(ctx context.Context, bindingID string) (Credentials, error) {
 	return rsb.GetBinding(ctx, bindingID)
+}
+
+// Unbind does nothing for redis bindings.
+func (rsb RedisServiceBinder) Unbind(_ context.Context, _ string) error {
+	return nil
 }
 
 // Deprovision removes the downstream namespace.

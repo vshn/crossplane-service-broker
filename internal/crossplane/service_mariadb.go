@@ -14,8 +14,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	serviceMariadb = "mariadb-k8s"
+var (
+	// errNotImplemented is the error returned for not implmemented functions
+	errNotImplemented = apiresponses.
+		NewFailureResponseBuilder(
+			errors.New("not implemented"),
+			http.StatusNotImplemented,
+			"not-implemented").
+		WithErrorKey("NotImplemented").
+		Build()
 )
 
 // MariadbServiceBinder defines a specific Mariadb service with enough data to retrieve connection credentials.
@@ -38,7 +45,7 @@ func NewMariadbServiceBinder(c *Crossplane, instance *Instance, logger lager.Log
 	}
 }
 
-// Bind on a MariaDB instance doesn't work - only a database referencing an instance can be bound.
+// Bind on a MariaDB instance is not supported - only a database referencing an instance can be bound.
 func (msb MariadbServiceBinder) Bind(_ context.Context, _ string) (Credentials, error) {
 	return nil, apiresponses.NewFailureResponseBuilder(
 		fmt.Errorf("service MariaDB Galera Cluster is not bindable. "+
@@ -47,6 +54,11 @@ func (msb MariadbServiceBinder) Bind(_ context.Context, _ string) (Credentials, 
 		http.StatusUnprocessableEntity,
 		"binding-not-supported",
 	).WithErrorKey("BindingNotSupported").Build()
+}
+
+// Unind on a MariaDB instance is not supported - only a database referencing an instance can be bound.
+func (msb MariadbServiceBinder) Unbind(_ context.Context, _ string) error {
+	return errNotImplemented
 }
 
 // Deprovision removes the downstream namespace and checks if no DBs exist for this instance anymore.

@@ -96,8 +96,10 @@ func (b BrokerAPI) Bind(ctx context.Context, instanceID, bindingID string, detai
 // Unbind deletes an existing service binding
 //   DELETE /v2/service_instances/{instance_id}/service_bindings/{binding_id}
 func (b BrokerAPI) Unbind(ctx context.Context, instanceID, bindingID string, details domain.UnbindDetails, asyncAllowed bool) (domain.UnbindSpec, error) {
-	spec := domain.UnbindSpec{}
-	return spec, errors.New("not implemented")
+	logger := requestScopedLogger(ctx, b.logger).WithData(lager.Data{"instance-id": instanceID, "binding-id": bindingID})
+	logger.Info("unbind-instance", lager.Data{"plan-id": details.PlanID, "service-id": details.ServiceID})
+
+	return b.broker.Unbind(ctx, instanceID, bindingID, details.PlanID)
 }
 
 // GetBinding fetches an existing service binding
