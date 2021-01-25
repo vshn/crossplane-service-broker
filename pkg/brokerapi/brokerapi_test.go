@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -592,6 +593,115 @@ func TestBrokerAPI_Bind(t *testing.T) {
 	}
 }
 
+func TestBrokerAPI_Unbind(t *testing.T) {
+	type fields struct {
+		broker *broker.Broker
+		logger lager.Logger
+	}
+	type args struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+		details    domain.UnbindDetails
+	}
+	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+
+	tests := []struct {
+		name     string
+		fields   fields
+		args     args
+		want     *domain.UnbindSpec
+		wantErr  error
+		preRunFn preRunFunc
+	}{
+		{
+			name: "requires instance to be ready before unbinding",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UnbindDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				return createObjects(context.TODO(), []runtime.Object{
+					newService("1", crossplane.RedisService),
+					servicePlan.Composition,
+					newInstance("1-1-1", servicePlan, crossplane.RedisService),
+				})(c)
+			},
+			want:    nil,
+			wantErr: errors.New(`instance is being updated and cannot be retrieved (correlation-id: "corrid")`),
+		},
+		{
+			name: "removes a MariaDB user instance",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "binding-1",
+				details: domain.UnbindDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService)
+				err := createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.MariaDBDatabaseService),
+					servicePlan.Composition,
+					instance,
+					newMariaDBUserInstance("1-1-1", "binding-1"),
+					newSecret(testNamespace, "binding-1-password", map[string]string{
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+					}),
+				})(c)
+				if err != nil {
+					return err
+				}
+
+				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+			},
+			want: &domain.UnbindSpec{
+				IsAsync: false,
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, logger, cp, err := setupManager(t)
+			if err != nil {
+				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+				return
+			}
+			defer m.Cleanup()
+			assert.NoError(t, tt.preRunFn(m.GetClient()))
+
+			b := broker.New(cp, logger)
+
+			bAPI := BrokerAPI{
+				broker: b,
+				logger: logger,
+			}
+
+			got, err := bAPI.Unbind(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details, false)
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tt.want, got)
+		})
+	}
+}
+
 func updateInstanceConditions(ctx context.Context, c client.Client, servicePlan *crossplane.Plan, instance *composite.Unstructured, t xrv1.ConditionType, status corev1.ConditionStatus, reason xrv1.ConditionReason) error {
 	gvk, err := servicePlan.GVK()
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
@@ -709,6 +819,23 @@ func newSecret(namespace, name string, stringData map[string]string) *corev1.Sec
 		},
 		StringData: stringData,
 	}
+}
+
+func newMariaDBUserInstance(instanceID, bindingID string) *composite.Unstructured {
+	gvk := schema.GroupVersionKind{
+		Group:   "syn.tools",
+		Version: "v1alpha1",
+		Kind:    "CompositeMariaDBUserInstance",
+	}
+	cmp := composite.New(composite.WithGroupVersionKind(gvk))
+	cmp.SetName(bindingID)
+	cmp.Object["spec"] = map[string]interface{}{
+		"parameters": map[string]interface{}{
+			"parent_reference": instanceID,
+		},
+	}
+
+	return cmp
 }
 
 func newNamespace(name string) *corev1.Namespace {

@@ -32,7 +32,7 @@ E2E_IMAGE ?= localhost:$(KIND_REGISTRY_PORT)/vshn/$(BINARY_NAME):e2e
 ANTORA_PREVIEW_CMD ?= $(DOCKER_CMD) run --rm --publish 35729:35729 --publish 2020:2020 --volume "${PWD}":/preview/antora vshn/antora-preview:2.3.4 --style=syn --antora=docs
 
 # Linting parameters
-YAML_FILES      ?= $(shell find . -type f -name '*.yaml' -or -name '*.yml')
+YAML_FILES      ?= $(shell git ls-files *.y*ml)
 YAMLLINT_ARGS   ?= --no-warnings
 YAMLLINT_CONFIG ?= .yamllint.yml
 YAMLLINT_IMAGE  ?= docker.io/cytopia/yamllint:latest

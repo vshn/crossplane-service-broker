@@ -99,17 +99,9 @@ func (b Broker) Deprovision(ctx context.Context, instanceID, planID string) (dom
 		IsAsync: false,
 	}
 
-	p, err := b.cp.Plan(ctx, planID)
+	p, instance, err := b.getPlanInstance(ctx, planID, instanceID)
 	if err != nil {
 		return res, toApiResponseError(ctx, err)
-	}
-
-	instance, exists, err := b.cp.Instance(ctx, instanceID, p)
-	if err != nil {
-		return res, toApiResponseError(ctx, err)
-	}
-	if !exists {
-		return res, toApiResponseError(ctx, apiresponses.ErrInstanceDoesNotExist)
 	}
 
 	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
@@ -131,17 +123,9 @@ func (b Broker) Bind(ctx context.Context, instanceID, bindingID, planID string) 
 		IsAsync: false,
 	}
 
-	p, err := b.cp.Plan(ctx, planID)
+	_, instance, err := b.getPlanInstance(ctx, planID, instanceID)
 	if err != nil {
 		return res, toApiResponseError(ctx, err)
-	}
-
-	instance, exists, err := b.cp.Instance(ctx, instanceID, p)
-	if err != nil {
-		return res, toApiResponseError(ctx, err)
-	}
-	if !exists {
-		return res, toApiResponseError(ctx, apiresponses.ErrInstanceDoesNotExist)
 	}
 	if !instance.Ready() {
 		return res, toApiResponseError(ctx, apiresponses.ErrConcurrentInstanceAccess)
@@ -168,20 +152,37 @@ func (b Broker) Bind(ctx context.Context, instanceID, bindingID, planID string) 
 	return res, nil
 }
 
+func (b Broker) Unbind(ctx context.Context, instanceID, bindingID, planID string) (domain.UnbindSpec, error) {
+	res := domain.UnbindSpec{
+		IsAsync: false,
+	}
+
+	_, instance, err := b.getPlanInstance(ctx, planID, instanceID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+	if !instance.Ready() {
+		return res, toApiResponseError(ctx, apiresponses.ErrConcurrentInstanceAccess)
+	}
+
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	err = sb.Unbind(ctx, bindingID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+	return res, nil
+}
+
 func (b Broker) LastOperation(ctx context.Context, instanceID, planID string) (domain.LastOperation, error) {
 	res := domain.LastOperation{}
 
-	p, err := b.cp.Plan(ctx, planID)
+	_, instance, err := b.getPlanInstance(ctx, planID, instanceID)
 	if err != nil {
 		return res, toApiResponseError(ctx, err)
-	}
-
-	instance, exists, err := b.cp.Instance(ctx, instanceID, p)
-	if err != nil {
-		return res, toApiResponseError(ctx, err)
-	}
-	if !exists {
-		return res, toApiResponseError(ctx, apiresponses.ErrInstanceDoesNotExist)
 	}
 
 	condition := instance.Composite.GetCondition(xrv1.TypeReady)
@@ -212,4 +213,20 @@ func (b Broker) LastOperation(ctx context.Context, instanceID, planID string) (d
 		res.State = domain.Failed
 	}
 	return res, nil
+}
+
+func (b Broker) getPlanInstance(ctx context.Context, planID, instanceID string) (*crossplane.Plan, *crossplane.Instance, error) {
+	p, err := b.cp.Plan(ctx, planID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	instance, exists, err := b.cp.Instance(ctx, instanceID, p)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !exists {
+		return nil, nil, apiresponses.ErrInstanceDoesNotExist
+	}
+	return p, instance, nil
 }
