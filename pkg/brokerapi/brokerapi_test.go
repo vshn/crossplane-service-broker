@@ -12,6 +12,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
 	"github.com/crossplane/crossplane-runtime/pkg/test/integration"
 	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
@@ -830,6 +831,113 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 			}
 
 			got, err := bAPI.GetBinding(tt.args.ctx, tt.args.instanceID, tt.args.bindingID)
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tt.want, got)
+		})
+	}
+}
+
+func TestBrokerAPI_GetInstance(t *testing.T) {
+	type fields struct {
+		broker *broker.Broker
+		logger lager.Logger
+	}
+	type args struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+	}
+	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+
+	tests := []struct {
+		name     string
+		fields   fields
+		args     args
+		want     *domain.GetInstanceDetailsSpec
+		wantErr  error
+		preRunFn preRunFunc
+	}{
+		{
+			name: "gets an instance without parameters",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "")
+
+				return createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.RedisService),
+					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					servicePlan.Composition,
+					instance,
+				})(c)
+			},
+			want: &domain.GetInstanceDetailsSpec{
+				PlanID:     "1-2",
+				ServiceID:  "1",
+				Parameters: nil,
+			},
+			wantErr: nil,
+		},
+
+		{
+			name: "gets an instance with parameters",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "")
+				_ = fieldpath.Pave(instance.Object).SetValue("spec.parameters.parent_reference", "1")
+
+				return createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.MariaDBDatabaseService),
+					newServicePlan("1", "1-2", crossplane.MariaDBDatabaseService).Composition,
+					servicePlan.Composition,
+					instance,
+				})(c)
+			},
+			want: &domain.GetInstanceDetailsSpec{
+				PlanID:    "1-2",
+				ServiceID: "1",
+				Parameters: map[string]interface{}{
+					"parent_reference": "1",
+				},
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, logger, cp, err := setupManager(t)
+			if err != nil {
+				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+				return
+			}
+			defer m.Cleanup()
+			require.NoError(t, tt.preRunFn(m.GetClient()))
+
+			b := broker.New(cp, logger)
+
+			bAPI := BrokerAPI{
+				broker: b,
+				logger: logger,
+			}
+
+			got, err := bAPI.GetInstance(tt.args.ctx, tt.args.instanceID)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
 				return

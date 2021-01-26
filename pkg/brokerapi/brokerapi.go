@@ -66,8 +66,10 @@ func (b BrokerAPI) Deprovision(ctx context.Context, instanceID string, details d
 // GetInstance fetches information about a service instance
 //   GET /v2/service_instances/{instance_id}
 func (b BrokerAPI) GetInstance(ctx context.Context, instanceID string) (domain.GetInstanceDetailsSpec, error) {
-	spec := domain.GetInstanceDetailsSpec{}
-	return spec, errors.New("not implemented")
+	logger := requestScopedLogger(ctx, b.logger).WithData(lager.Data{"instance-id": instanceID})
+	logger.Info("get-instance")
+
+	return b.broker.GetInstance(ctx, instanceID)
 }
 
 // Update modifies an existing service instance

@@ -23,9 +23,6 @@ const (
 	planName   = "mariadb-user"
 	secretName = "%s-password"
 
-	// instanceSpecParamsPath is the path to an instance's parameters
-	instanceSpecParamsPath = "spec.parameters"
-
 	// instanceParamsParentReferenceName is the name of an instance's parent reference parameter
 	instanceParamsParentReferenceName = "parent_reference"
 	// instanceSpecParamsParentReferencePath is the path to an instance's parent reference parameter
