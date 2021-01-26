@@ -1,0 +1,154 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  labels:
+    name: compositemariadbinstances.syn.tools
+    service.syn.tools/bindable: "false"
+    service.syn.tools/id: 5e7ee9b8-3f5e-4081-a91f-e0cd98827e84
+    service.syn.tools/name: mariadb-k8s
+    service.syn.tools/updatable: "true"
+  name: compositemariadbinstances.syn.tools
+  ownerReferences:
+    - apiVersion: apiextensions.crossplane.io/v1
+      controller: true
+      kind: CompositeResourceDefinition
+      name: compositemariadbinstances.syn.tools
+      uid: fc8c3bc5-3ca8-4919-a2be-b1a5b754e4f9
+spec:
+  conversion:
+    strategy: None
+  group: syn.tools
+  names:
+    categories:
+      - composite
+    kind: CompositeMariaDBInstance
+    listKind: CompositeMariaDBInstanceList
+    plural: compositemariadbinstances
+    singular: compositemariadbinstance
+  scope: Cluster
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+        - jsonPath: .metadata.labels['service\.syn\.tools/plan']
+          name: Plan
+          type: string
+        - jsonPath: .metadata.labels['service\.syn\.tools/cluster']
+          name: Cluster
+          type: string
+        - jsonPath: .status.conditions[?(@.type=='Ready')].status
+          name: READY
+          type: string
+        - jsonPath: .spec.compositionRef.name
+          name: COMPOSITION
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: AGE
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                claimRef:
+                  properties:
+                    apiVersion:
+                      type: string
+                    kind:
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                    - apiVersion
+                    - kind
+                    - namespace
+                    - name
+                  type: object
+                compositionRef:
+                  properties:
+                    name:
+                      type: string
+                  required:
+                    - name
+                  type: object
+                compositionSelector:
+                  properties:
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  required:
+                    - matchLabels
+                  type: object
+                resourceRefs:
+                  items:
+                    properties:
+                      apiVersion:
+                        type: string
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                    required:
+                      - apiVersion
+                      - kind
+                      - name
+                    type: object
+                  type: array
+                writeConnectionSecretToRef:
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                    - name
+                    - namespace
+                  type: object
+              type: object
+            status:
+              properties:
+                conditions:
+                  description: Conditions of the resource.
+                  items:
+                    properties:
+                      lastTransitionTime:
+                        format: date-time
+                        type: string
+                      message:
+                        type: string
+                      reason:
+                        type: string
+                      status:
+                        type: string
+                      type:
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                connectionDetails:
+                  properties:
+                    lastPublishedTime:
+                      format: date-time
+                      type: string
+                  type: object
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true

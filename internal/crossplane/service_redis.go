@@ -37,9 +37,9 @@ func (rsb RedisServiceBinder) Unbind(_ context.Context, _ string) error {
 	return nil
 }
 
-// Deprovision removes the downstream namespace.
-func (rsb RedisServiceBinder) Deprovision(ctx context.Context) error {
-	return markNamespaceDeleted(ctx, rsb.cp, rsb.instanceID, rsb.resources)
+// Deprovisionable returns always nil for redis instances.
+func (rsb RedisServiceBinder) Deprovisionable(ctx context.Context) error {
+	return nil
 }
 
 // GetBinding always returns the same credentials for Redis

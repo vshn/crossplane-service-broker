@@ -57,8 +57,10 @@ func (b BrokerAPI) Provision(ctx context.Context, instanceID string, details dom
 // Deprovision deletes an existing service instance
 //  DELETE /v2/service_instances/{instance_id}
 func (b BrokerAPI) Deprovision(ctx context.Context, instanceID string, details domain.DeprovisionDetails, asyncAllowed bool) (domain.DeprovisionServiceSpec, error) {
-	spec := domain.DeprovisionServiceSpec{}
-	return spec, errors.New("not implemented")
+	logger := requestScopedLogger(ctx, b.logger).WithData(lager.Data{"instance-id": instanceID})
+	logger.Info("deprovision-instance", lager.Data{"plan-id": details.PlanID, "service-id": details.ServiceID})
+
+	return b.broker.Deprovision(ctx, instanceID, details.PlanID)
 }
 
 // GetInstance fetches information about a service instance

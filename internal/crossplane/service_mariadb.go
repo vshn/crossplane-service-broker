@@ -61,8 +61,8 @@ func (msb MariadbServiceBinder) Unbind(_ context.Context, _ string) error {
 	return errNotImplemented
 }
 
-// Deprovision removes the downstream namespace and checks if no DBs exist for this instance anymore.
-func (msb MariadbServiceBinder) Deprovision(ctx context.Context) error {
+// Deprovisionable checks if no DBs exist for this instance anymore.
+func (msb MariadbServiceBinder) Deprovisionable(ctx context.Context) error {
 	instanceList := &unstructured.UnstructuredList{}
 	instanceList.SetGroupVersionKind(groupVersionKind)
 	instanceList.SetKind("CompositeMariaDBDatabaseInstanceList")
@@ -82,7 +82,7 @@ func (msb MariadbServiceBinder) Deprovision(ctx context.Context) error {
 			"deprovision-instance-in-use",
 		).WithErrorKey("InUseError").Build()
 	}
-	return markNamespaceDeleted(ctx, msb.cp, msb.instanceID, msb.resources)
+	return nil
 }
 
 // FIXME(mw): FinishProvision might be needed, but probably not.
