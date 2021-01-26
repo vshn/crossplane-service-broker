@@ -1,0 +1,162 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+  labels:
+    name: compositemariadbdatabaseinstances.syn.tools
+    service.syn.tools/name: mariadb-k8s-database
+  name: compositemariadbdatabaseinstances.syn.tools
+  ownerReferences:
+    - apiVersion: apiextensions.crossplane.io/v1
+      controller: true
+      kind: CompositeResourceDefinition
+      name: compositemariadbdatabaseinstances.syn.tools
+      uid: 11962e09-b792-4bb0-b4a5-16c81e889587
+spec:
+  conversion:
+    strategy: None
+  group: syn.tools
+  names:
+    categories:
+      - composite
+    kind: CompositeMariaDBDatabaseInstance
+    listKind: CompositeMariaDBDatabaseInstanceList
+    plural: compositemariadbdatabaseinstances
+    singular: compositemariadbdatabaseinstance
+  scope: Cluster
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+        - jsonPath: .metadata.labels['service\.syn\.tools/plan']
+          name: Plan
+          type: string
+        - jsonPath: .spec.parameters.parent_reference
+          name: Parent Instance
+          type: string
+        - jsonPath: .status.conditions[?(@.type=='Ready')].status
+          name: READY
+          type: string
+        - jsonPath: .spec.compositionRef.name
+          name: COMPOSITION
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: AGE
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              properties:
+                claimRef:
+                  properties:
+                    apiVersion:
+                      type: string
+                    kind:
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                    - apiVersion
+                    - kind
+                    - namespace
+                    - name
+                  type: object
+                compositionRef:
+                  properties:
+                    name:
+                      type: string
+                  required:
+                    - name
+                  type: object
+                compositionSelector:
+                  properties:
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  required:
+                    - matchLabels
+                  type: object
+                parameters:
+                  properties:
+                    parent_reference:
+                      description: The UUID of the MariaDB Galera cluster service instance
+                      type: string
+                  required:
+                    - parent_reference
+                  type: object
+                resourceRefs:
+                  items:
+                    properties:
+                      apiVersion:
+                        type: string
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                    required:
+                      - apiVersion
+                      - kind
+                      - name
+                    type: object
+                  type: array
+                writeConnectionSecretToRef:
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                    - name
+                    - namespace
+                  type: object
+              required:
+                - parameters
+              type: object
+            status:
+              properties:
+                conditions:
+                  description: Conditions of the resource.
+                  items:
+                    properties:
+                      lastTransitionTime:
+                        format: date-time
+                        type: string
+                      message:
+                        type: string
+                      reason:
+                        type: string
+                      status:
+                        type: string
+                      type:
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                connectionDetails:
+                  properties:
+                    lastPublishedTime:
+                      format: date-time
+                      type: string
+                  type: object
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true

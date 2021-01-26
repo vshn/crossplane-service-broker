@@ -108,7 +108,7 @@ func (b Broker) Deprovision(ctx context.Context, instanceID, planID string) (dom
 	if err != nil {
 		return res, toApiResponseError(ctx, err)
 	}
-	if err := sb.Deprovision(ctx); err != nil {
+	if err := sb.Deprovisionable(ctx); err != nil {
 		return res, toApiResponseError(ctx, err)
 	}
 

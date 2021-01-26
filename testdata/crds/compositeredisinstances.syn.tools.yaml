@@ -2,13 +2,16 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   labels:
-    name: compositeinstances.syn.tools
-  name: compositeinstances.syn.tools
+    name: compositeredisinstances.syn.tools
+    service.syn.tools/id: 8d4b8039-6bcc-4f68-98f0-0e8efa5ab0e2
+    service.syn.tools/name: redis-k8s
+    service.syn.tools/updatable: "true"
+  name: compositeredisinstances.syn.tools
   ownerReferences:
-    - apiVersion: apiextensions.crossplane.io/v1beta1
+    - apiVersion: apiextensions.crossplane.io/v1
       controller: true
       kind: CompositeResourceDefinition
-      name: compositeinstances.syn.tools
+      name: compositeredisinstances.syn.tools
       uid: 3ec404a6-f02e-4098-98c6-b4c5c1f8a20e
 spec:
   conversion:
@@ -17,10 +20,10 @@ spec:
   names:
     categories:
       - composite
-    kind: CompositeInstance
-    listKind: CompositeInstanceList
-    plural: compositeinstances
-    singular: compositeinstance
+    kind: CompositeRedisInstance
+    listKind: CompositeRedisInstanceList
+    plural: compositeredisinstances
+    singular: compositeredisinstance
   scope: Cluster
   versions:
     - additionalPrinterColumns:
@@ -39,6 +42,9 @@ spec:
         - jsonPath: .spec.compositionRef.name
           name: COMPOSITION
           type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: AGE
+          type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
@@ -92,8 +98,6 @@ spec:
                         type: string
                       name:
                         type: string
-                      uid:
-                        type: string
                     required:
                       - apiVersion
                       - kind
@@ -142,6 +146,8 @@ spec:
                       type: string
                   type: object
               type: object
+          required:
+            - spec
           type: object
       served: true
       storage: true

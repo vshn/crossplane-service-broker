@@ -116,8 +116,8 @@ func (msb MariadbDatabaseServiceBinder) Unbind(ctx context.Context, bindingID st
 	return msb.cp.client.Delete(ctx, secret)
 }
 
-// Deprovision does nothing for MariaDB DB instances.
-func (msb MariadbDatabaseServiceBinder) Deprovision(_ context.Context) error {
+// Deprovisionable always returns nil for MariadbDatabase instances.
+func (msb MariadbDatabaseServiceBinder) Deprovisionable(ctx context.Context) error {
 	return nil
 }
 
