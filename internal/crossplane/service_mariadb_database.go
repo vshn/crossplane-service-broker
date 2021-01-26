@@ -121,6 +121,27 @@ func (msb MariadbDatabaseServiceBinder) Deprovisionable(ctx context.Context) err
 	return nil
 }
 
+// GetBinding returns credentials for MariaDB
+func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingID string) (Credentials, error) {
+	secret, err := msb.cp.getCredentials(ctx, bindingID)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			err = ErrInstanceNotReady
+		}
+		return nil, err
+	}
+
+	endpoint, err := mapMariadbEndpoint(secret.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	pw := string(secret.Data[xrv1.ResourceCredentialsSecretPasswordKey])
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.Composite.GetName())
+
+	return creds, nil
+}
+
 func (msb MariadbDatabaseServiceBinder) createBinding(ctx context.Context, bindingID, instanceID, parentReference string) (string, error) {
 	pw, err := password.Generate()
 	if err != nil {

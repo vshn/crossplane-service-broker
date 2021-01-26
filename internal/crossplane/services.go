@@ -44,6 +44,7 @@ type ServiceBinder interface {
 	Bind(ctx context.Context, bindingID string) (Credentials, error)
 	Unbind(ctx context.Context, bindingID string) error
 	Deprovisionable(ctx context.Context) error
+	GetBinding(ctx context.Context, bindingID string) (Credentials, error)
 }
 
 // FinishProvisioner is not currently implemented as provider-helm upgrade is TBD and we need to adjust endpoint retrieval anyway.

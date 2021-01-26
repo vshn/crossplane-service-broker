@@ -85,6 +85,11 @@ func (msb MariadbServiceBinder) Deprovisionable(ctx context.Context) error {
 	return nil
 }
 
+// GetBinding is not implemented.
+func (msb MariadbServiceBinder) GetBinding(_ context.Context, _ string) (Credentials, error) {
+	return nil, errNotImplemented
+}
+
 // FIXME(mw): FinishProvision might be needed, but probably not.
 func (msb MariadbServiceBinder) FinishProvision(ctx context.Context) error {
 	return errors.New("FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation.")

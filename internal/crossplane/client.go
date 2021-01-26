@@ -200,6 +200,31 @@ func (cp Crossplane) Instance(ctx context.Context, id string, plan *Plan) (inst 
 	return inst, true, nil
 }
 
+// FindInstanceWithoutPlan is used for retrieving an instance when the plan is unknown.
+// It needs to iterate through all plans and fetch the instance using the supplied GVK.
+// There's probably an optimization to be done here, as this seems fairly shitty, but for now it works.
+func (cp Crossplane) FindInstanceWithoutPlan(ctx context.Context, id string) (inst *Instance, p *Plan, ok bool, err error) {
+	plans, err := cp.Plans(ctx, cp.serviceIDs)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	for _, plan := range plans {
+		instance, exists, err := cp.Instance(ctx, id, plan)
+		if err != nil {
+			if err == errInstanceNotFound {
+				// plan didn't match
+				continue
+			}
+			return nil, nil, false, err
+		}
+		if !exists {
+			continue
+		}
+		return instance, plan, true, nil
+	}
+	return nil, nil, false, errInstanceNotFound
+}
+
 // CreateInstance sets a new composite with assigned plan and params up.
 // TODO(mw): simplify, refactor
 func (cp Crossplane) CreateInstance(ctx context.Context, id string, plan *Plan, params json.RawMessage) error {
