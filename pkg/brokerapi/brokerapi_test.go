@@ -18,7 +18,6 @@ import (
 	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
 	"github.com/go-logr/zapr"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
-	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	"github.com/pivotal-cf/brokerapi/v7/middlewares"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -163,7 +162,7 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				return nil
 			},
 			want:    nil,
-			wantErr: apiresponses.ErrAsyncRequired,
+			wantErr: errors.New(`This service plan requires client support for asynchronous service operations. (correlation-id: "corrid")`),
 		},
 		{
 			name: "specified plan must exist",
@@ -217,7 +216,7 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				return createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1", servicePlan, crossplane.RedisService, ""),
+					newInstance("1", servicePlan, crossplane.RedisService, "", ""),
 				})(c)
 			},
 			want:    &domain.ProvisionedServiceSpec{AlreadyExists: true},
@@ -353,7 +352,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				return createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1", servicePlan, crossplane.RedisService, ""),
+					newInstance("1", servicePlan, crossplane.RedisService, "", ""),
 				})(c)
 			},
 			customCheckFn: func(t *testing.T, c client.Client) {
@@ -380,7 +379,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
 				mdbs := newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
 
-				dbInstance := newInstance("2", mdbs, crossplane.MariaDBDatabaseService, "1")
+				dbInstance := newInstance("2", mdbs, crossplane.MariaDBDatabaseService, "", "1")
 				dbInstance.Object["spec"] = map[string]interface{}{
 					"parameters": map[string]interface{}{
 						"parent_reference": "1",
@@ -392,7 +391,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 					servicePlan.Composition,
 					newService("2", crossplane.MariaDBDatabaseService),
 					mdbs.Composition,
-					newInstance("1", servicePlan, crossplane.MariaDBService, ""),
+					newInstance("1", servicePlan, crossplane.MariaDBService, "", ""),
 					dbInstance,
 				})(c)
 			},
@@ -470,7 +469,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				return createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1", servicePlan, crossplane.RedisService, ""),
+					newInstance("1", servicePlan, crossplane.RedisService, "", ""),
 				})(c)
 			},
 			want: &domain.LastOperation{
@@ -492,7 +491,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newInstance("1", servicePlan, crossplane.RedisService, "")
+				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
 				err := createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
@@ -523,7 +522,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newInstance("1", servicePlan, crossplane.RedisService, "")
+				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
 				err := createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
@@ -554,7 +553,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newInstance("1", servicePlan, crossplane.RedisService, "")
+				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
 				err := createObjects(context.TODO(), []runtime.Object{
 					service,
 					servicePlan.Composition,
@@ -639,7 +638,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				return createObjects(context.TODO(), []runtime.Object{
 					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newInstance("1-1-1", servicePlan, crossplane.RedisService, ""),
+					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				})(c)
 			},
 			want:    nil,
@@ -658,7 +657,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 			},
 			preRunFn: func(c client.Client) error {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "")
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 				err := createObjects(context.TODO(), []runtime.Object{
 					newNamespace(testNamespace),
 					newService("1", crossplane.RedisService),
@@ -697,7 +696,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 			},
 			preRunFn: func(c client.Client) error {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "")
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
 				err := createObjects(context.TODO(), []runtime.Object{
 					newNamespace(testNamespace),
 					newService("1", crossplane.MariaDBService),
@@ -781,7 +780,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 				return createObjects(context.TODO(), []runtime.Object{
 					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newInstance("1-1-1", servicePlan, crossplane.RedisService, ""),
+					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				})(c)
 			},
 			want:    nil,
@@ -796,7 +795,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 			},
 			preRunFn: func(c client.Client) error {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "")
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 				err := createObjects(context.TODO(), []runtime.Object{
 					newNamespace(testNamespace),
 					newService("1", crossplane.RedisService),
@@ -882,7 +881,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 			},
 			preRunFn: func(c client.Client) error {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "")
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 
 				return createObjects(context.TODO(), []runtime.Object{
 					newNamespace(testNamespace),
@@ -909,7 +908,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 			},
 			preRunFn: func(c client.Client) error {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "")
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "")
 				_ = fieldpath.Pave(instance.Object).SetValue("spec.parameters.parent_reference", "1")
 
 				return createObjects(context.TODO(), []runtime.Object{
@@ -960,6 +959,236 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 	}
 }
 
+func TestBrokerAPI_Update(t *testing.T) {
+	type fields struct {
+		broker *broker.Broker
+		logger lager.Logger
+	}
+	type args struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+		details    domain.UpdateDetails
+	}
+	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+
+	tests := []struct {
+		name     string
+		fields   fields
+		args     args
+		want     *domain.UpdateServiceSpec
+		wantErr  error
+		preRunFn preRunFunc
+	}{
+		{
+			name: "service update not permitted",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "2",
+					PlanID:    "2-1",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.RedisService),
+					newService("2", crossplane.RedisService),
+					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					newServicePlan("2", "2-1", crossplane.RedisService).Composition,
+					servicePlan.Composition,
+					instance,
+				})(c)
+			},
+			want:    nil,
+			wantErr: errors.New(`service update not permitted (correlation-id: "corrid")`),
+		},
+		{
+			name: "plan size change not permitted",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.RedisService),
+					newService("2", crossplane.RedisService),
+					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "large", "standard").Composition,
+					servicePlan.Composition,
+					instance,
+				})(c)
+			},
+			want:    nil,
+			wantErr: errors.New(`plan change not permitted (correlation-id: "corrid")`),
+		},
+		{
+			name: "upgrade standard -> premium possible",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.RedisService),
+					newService("2", crossplane.RedisService),
+					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
+					servicePlan.Composition,
+					instance,
+				})(c)
+			},
+			want:    &domain.UpdateServiceSpec{},
+			wantErr: nil,
+		},
+		{
+			name: "upgrade standard -> premium possible (also works without PreviousValues)",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.RedisService),
+					newService("2", crossplane.RedisService),
+					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
+					servicePlan.Composition,
+					instance,
+				})(c)
+			},
+			want:    &domain.UpdateServiceSpec{},
+			wantErr: nil,
+		},
+		{
+			name: "downgrade premium -> standard possible",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small-premium", "premium")
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.RedisService),
+					newService("2", crossplane.RedisService),
+					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small", "standard").Composition,
+					servicePlan.Composition,
+					instance,
+				})(c)
+			},
+			want:    &domain.UpdateServiceSpec{},
+			wantErr: nil,
+		},
+		{
+			name: "upgrade super-large-standard -> super-large-premium possible",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "super-large", "standard")
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.RedisService),
+					newService("2", crossplane.RedisService),
+					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "super-large-premium", "premium").Composition,
+					servicePlan.Composition,
+					instance,
+				})(c)
+			},
+			want:    &domain.UpdateServiceSpec{},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, logger, cp, err := setupManager(t)
+			if err != nil {
+				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+				return
+			}
+			defer m.Cleanup()
+			require.NoError(t, tt.preRunFn(m.GetClient()))
+
+			b := broker.New(cp, logger)
+
+			bAPI := BrokerAPI{
+				broker: b,
+				logger: logger,
+			}
+
+			got, err := bAPI.Update(tt.args.ctx, tt.args.instanceID, tt.args.details, false)
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tt.want, got)
+		})
+	}
+}
+
 func TestBrokerAPI_Unbind(t *testing.T) {
 	type fields struct {
 		broker *broker.Broker
@@ -997,7 +1226,7 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 				return createObjects(context.TODO(), []runtime.Object{
 					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newInstance("1-1-1", servicePlan, crossplane.RedisService, ""),
+					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				})(c)
 			},
 			want:    nil,
@@ -1016,7 +1245,7 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 			},
 			preRunFn: func(c client.Client) error {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "")
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "")
 				instance.Object["spec"] = map[string]interface{}{
 					"parameters": map[string]interface{}{
 						"parent_reference": "1",
@@ -1173,6 +1402,45 @@ func newServicePlan(serviceID string, planID string, serviceName crossplane.Serv
 	}
 }
 
+func newServicePlanWithSize(serviceID string, planID string, serviceName crossplane.Service, name string, sla string) *crossplane.Plan {
+	return &crossplane.Plan{
+		Labels: &crossplane.Labels{
+			ServiceID:   serviceID,
+			ServiceName: serviceName,
+			PlanName:    name,
+			SLA:         sla,
+			Bindable:    false,
+		},
+		Composition: &xv1.Composition{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "servicePlan",
+				APIVersion: "syn.tools/v1alpha1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: planID,
+				Labels: map[string]string{
+					crossplane.ServiceIDLabel:   serviceID,
+					crossplane.ServiceNameLabel: string(serviceName),
+					crossplane.PlanNameLabel:    name,
+					crossplane.SLALabel:         sla,
+					crossplane.BindableLabel:    "false",
+				},
+				Annotations: map[string]string{
+					crossplane.DescriptionAnnotation: "testservice-small plan description",
+					crossplane.MetadataAnnotation:    `{"displayName": "small"}`,
+				},
+			},
+			Spec: xv1.CompositionSpec{
+				Resources: []xv1.ComposedTemplate{},
+				CompositeTypeRef: xv1.TypeReference{
+					APIVersion: "syn.tools/v1alpha1",
+					Kind:       kindForService(serviceName),
+				},
+			},
+		},
+	}
+}
+
 func kindForService(name crossplane.Service) string {
 	switch name {
 	case crossplane.RedisService:
@@ -1185,7 +1453,7 @@ func kindForService(name crossplane.Service) string {
 	return "CompositeInstance"
 }
 
-func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.Service, parent string) *composite.Unstructured {
+func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.Service, serviceID, parent string) *composite.Unstructured {
 	gvk, _ := plan.GVK()
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
 	cmp.SetName(instanceID)
@@ -1194,6 +1462,8 @@ func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplan
 	})
 	labels := map[string]string{
 		crossplane.PlanNameLabel:    plan.Labels.PlanName,
+		crossplane.ServiceIDLabel:   serviceID,
+		crossplane.SLALabel:         plan.Labels.SLA,
 		crossplane.ServiceNameLabel: string(serviceName),
 	}
 	if parent != "" {

@@ -31,11 +31,10 @@ var errInstanceNotFound = errors.New("instance not found")
 
 // Crossplane client to access crossplane resources.
 type Crossplane struct {
-	client            k8sclient.Client
-	logger            lager.Logger
-	DownstreamClients map[string]k8sclient.Client
-	serviceIDs        []string
-	namespace         string
+	client     k8sclient.Client
+	logger     lager.Logger
+	serviceIDs []string
+	namespace  string
 }
 
 // Register configures the given runtime.Scheme with all required resources
@@ -262,6 +261,17 @@ func (cp Crossplane) CreateInstance(ctx context.Context, id string, plan *Plan, 
 	cmp.SetLabels(l)
 	cp.logger.Debug("create-instance", lager.Data{"instance": cmp})
 	return cp.client.Create(ctx, cmp)
+}
+
+// UpdateInstance updates `instance` on k8s.
+func (cp *Crossplane) UpdateInstance(ctx context.Context, instance *Instance, plan *Plan) error {
+	gvk, err := plan.GVK()
+	if err != nil {
+		return err
+	}
+	instance.Composite.SetGroupVersionKind(gvk)
+
+	return cp.client.Update(ctx, instance.Composite.GetUnstructured())
 }
 
 // DeleteInstance deletes a service instance
