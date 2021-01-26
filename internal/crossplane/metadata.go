@@ -3,6 +3,7 @@ package crossplane
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -40,26 +41,37 @@ const (
 	UpdatableLabel = SynToolsBase + "/updatable"
 	// DeletedLabel marks an object as deleted to clean up
 	DeletedLabel = SynToolsBase + "/deleted"
+
+	// SLAPremium represents the string for the premium SLA
+	SLAPremium = "premium"
+	// SLAStandard represents the string for the standard SLA
+	SLAStandard = "standard"
 )
 
 type Labels struct {
 	ServiceName Service
 	ServiceID   string
 	PlanName    string
+	PlanSize    string
 	InstanceID  string
 	ParentID    string
+	SLA         string
 	Bindable    bool
 	Updatable   bool
 	Deleted     bool
 }
 
 func parseLabels(l map[string]string) (*Labels, error) {
+	name := l[PlanNameLabel]
+	sla := l[SLALabel]
 	md := Labels{
 		ServiceName: Service(l[ServiceNameLabel]),
 		ServiceID:   l[ServiceIDLabel],
-		PlanName:    l[PlanNameLabel],
+		PlanName:    name,
+		PlanSize:    getPlanSize(name, sla),
 		InstanceID:  l[InstanceIDLabel],
 		ParentID:    l[ParentIDLabel],
+		SLA:         sla,
 		Bindable:    true,
 		Deleted:     false,
 	}
@@ -89,4 +101,9 @@ func parseBoolLabel(s string, def bool) (bool, error) {
 		return def, nil
 	}
 	return strconv.ParseBool(s)
+}
+
+// getPlanSize removes the `-{sla}` from a plan name in the format `{size}-{sla}`.
+func getPlanSize(name, sla string) string {
+	return strings.Replace(name, fmt.Sprintf("-%s", sla), "", 1)
 }

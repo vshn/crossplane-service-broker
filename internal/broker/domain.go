@@ -1,17 +1,10 @@
 package broker
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
-	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
-	"github.com/pivotal-cf/brokerapi/v7/middlewares"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/pointer"
 
 	"github.com/vshn/crossplane-service-broker/internal/crossplane"
@@ -58,32 +51,4 @@ func newServicePlan(plan *crossplane.Plan, logger lager.Logger) domain.ServicePl
 		Bindable:    &plan.Labels.Bindable,
 		Metadata:    meta,
 	}
-}
-
-// toApiResponseError converts an error to a proper API error
-func toApiResponseError(ctx context.Context, err error) *apiresponses.FailureResponse {
-	id, ok := ctx.Value(middlewares.CorrelationIDKey).(string)
-	if !ok {
-		id = "unknown"
-	}
-
-	var kErr *k8serrors.StatusError
-	if errors.As(err, &kErr) {
-		err = apiresponses.NewFailureResponseBuilder(
-			kErr,
-			int(kErr.ErrStatus.Code),
-			"invalid",
-		).WithErrorKey(string(kErr.ErrStatus.Reason)).Build()
-	}
-
-	var apiErr *apiresponses.FailureResponse
-	if errors.As(err, &apiErr) {
-		return apiErr.AppendErrorMessage(fmt.Sprintf("(correlation-id: %q)", id))
-	}
-
-	return apiresponses.NewFailureResponseBuilder(
-		fmt.Errorf("%w (correlation-id: %q)", err, id),
-		http.StatusInternalServerError,
-		"internal-server-error",
-	).Build()
 }
