@@ -9,6 +9,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// instanceSpecParamsPath is the path to an instance's parameters
+const instanceSpecParamsPath = "spec.parameters"
+
 // ErrInstanceNotReady is returned if credentials are fetched for an instance which is still provisioning.
 var ErrInstanceNotReady = errors.New("instance not ready")
 

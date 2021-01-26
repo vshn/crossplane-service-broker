@@ -240,8 +240,30 @@ func (b Broker) GetBinding(ctx context.Context, instanceID, bindingID string) (d
 	return res, nil
 }
 
+func (b Broker) GetInstance(ctx context.Context, instanceID string) (domain.GetInstanceDetailsSpec, error) {
+	res := domain.GetInstanceDetailsSpec{}
+
+	p, instance, err := b.getPlanInstance(ctx, "", instanceID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	params, err := instance.Parameters()
+	if err != nil {
+		return res, err
+	}
+
+	res.PlanID = p.Composition.GetName()
+	res.ServiceID = p.Labels.ServiceID
+	res.Parameters = params
+
+	return res, nil
+}
+
 func (b Broker) getPlanInstance(ctx context.Context, planID, instanceID string) (*crossplane.Plan, *crossplane.Instance, error) {
 	if planID == "" {
+		b.logger.Info("find-instance-without-plan", lager.Data{"instance-id": instanceID})
+
 		instance, p, exists, err := b.cp.FindInstanceWithoutPlan(ctx, instanceID)
 		if err != nil {
 			return nil, nil, err

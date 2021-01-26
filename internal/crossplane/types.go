@@ -2,6 +2,7 @@ package crossplane
 
 import (
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
 	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +46,14 @@ type Instance struct {
 
 func (i Instance) Ready() bool {
 	return i.Composite.GetCondition(xrv1.TypeReady).Status == corev1.ConditionTrue
+}
+
+func (i Instance) Parameters() (interface{}, error) {
+	p, err := fieldpath.Pave(i.Composite.Object).GetValue(instanceSpecParamsPath)
+	if fieldpath.IsNotFound(err) {
+		return nil, nil
+	}
+	return p, err
 }
 
 func newInstance(c *composite.Unstructured) (*Instance, error) {
