@@ -71,7 +71,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 					Plans: []domain.ServicePlan{
 						{
 							ID:          "1-1",
-							Name:        "small",
+							Name:        "small1-1",
 							Description: "testservice-small plan description",
 							Free:        boolPtr(false),
 							Bindable:    boolPtr(false),
@@ -737,6 +737,110 @@ func TestBrokerAPI_Bind(t *testing.T) {
 	}
 }
 
+func TestBrokerAPI_GetBinding(t *testing.T) {
+	type fields struct {
+		broker *broker.Broker
+		logger lager.Logger
+	}
+	type args struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+	}
+	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+
+	tests := []struct {
+		name     string
+		fields   fields
+		args     args
+		want     *domain.GetBindingSpec
+		wantErr  error
+		preRunFn preRunFunc
+	}{
+		{
+			name: "requires instance to be ready before getting a binding",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				return createObjects(context.TODO(), []runtime.Object{
+					newService("1", crossplane.RedisService),
+					servicePlan.Composition,
+					newInstance("1-1-1", servicePlan, crossplane.RedisService, ""),
+				})(c)
+			},
+			want:    nil,
+			wantErr: errors.New(`instance is being updated and cannot be retrieved (correlation-id: "corrid")`),
+		},
+		{
+			name: "creates a redis instance and gets the binding",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "")
+				err := createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.RedisService),
+					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					servicePlan.Composition,
+					instance,
+					newSecret(testNamespace, "creds", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+					}),
+				})(c)
+				if err != nil {
+					return err
+				}
+
+				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+			},
+			want: &domain.GetBindingSpec{
+				Credentials: crossplane.Credentials{
+					"password": "supersecret",
+				},
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, logger, cp, err := setupManager(t)
+			if err != nil {
+				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+				return
+			}
+			defer m.Cleanup()
+			require.NoError(t, tt.preRunFn(m.GetClient()))
+
+			b := broker.New(cp, logger)
+
+			bAPI := BrokerAPI{
+				broker: b,
+				logger: logger,
+			}
+
+			got, err := bAPI.GetBinding(tt.args.ctx, tt.args.instanceID, tt.args.bindingID)
+			if tt.wantErr != nil {
+				assert.EqualError(t, err, tt.wantErr.Error())
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, *tt.want, got)
+		})
+	}
+}
+
 func TestBrokerAPI_Unbind(t *testing.T) {
 	type fields struct {
 		broker *broker.Broker
@@ -906,10 +1010,6 @@ func newService(serviceID string, serviceName crossplane.Service) *xv1.Composite
 			},
 		},
 		Spec: xv1.CompositeResourceDefinitionSpec{
-			//Names: extv1.CustomResourceDefinitionNames{
-			//	Kind:   "CompositeRedisInstance",
-			//	Plural: "compositeredisinstances",
-			//},
 			Versions: []xv1.CompositeResourceDefinitionVersion{
 				{
 					Name: "v1alpha1",
@@ -920,7 +1020,7 @@ func newService(serviceID string, serviceName crossplane.Service) *xv1.Composite
 }
 
 func newServicePlan(serviceID string, planID string, serviceName crossplane.Service) *crossplane.Plan {
-	name := "small"
+	name := "small" + planID
 	return &crossplane.Plan{
 		Labels: &crossplane.Labels{
 			PlanName: name,

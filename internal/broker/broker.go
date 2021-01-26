@@ -62,7 +62,6 @@ func (b Broker) servicePlans(ctx context.Context, serviceIDs []string) ([]domain
 }
 
 // Provision creates a new service instance.
-// TODO(mw): serviceID is not required, sounds wrong. Should we check if service exists here? and plan belongs to service?
 func (b Broker) Provision(ctx context.Context, instanceID, planID string, params json.RawMessage) (domain.ProvisionedServiceSpec, error) {
 	res := domain.ProvisionedServiceSpec{}
 
@@ -215,7 +214,43 @@ func (b Broker) LastOperation(ctx context.Context, instanceID, planID string) (d
 	return res, nil
 }
 
+func (b Broker) GetBinding(ctx context.Context, instanceID, bindingID string) (domain.GetBindingSpec, error) {
+	res := domain.GetBindingSpec{}
+
+	_, instance, err := b.getPlanInstance(ctx, "", instanceID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+	if !instance.Ready() {
+		return res, toApiResponseError(ctx, apiresponses.ErrConcurrentInstanceAccess)
+	}
+
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	creds, err := sb.GetBinding(ctx, bindingID)
+	if err != nil {
+		return res, toApiResponseError(ctx, err)
+	}
+
+	res.Credentials = creds
+
+	return res, nil
+}
+
 func (b Broker) getPlanInstance(ctx context.Context, planID, instanceID string) (*crossplane.Plan, *crossplane.Instance, error) {
+	if planID == "" {
+		instance, p, exists, err := b.cp.FindInstanceWithoutPlan(ctx, instanceID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !exists {
+			return nil, nil, apiresponses.ErrInstanceDoesNotExist
+		}
+		return p, instance, nil
+	}
 	p, err := b.cp.Plan(ctx, planID)
 	if err != nil {
 		return nil, nil, err

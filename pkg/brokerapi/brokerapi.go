@@ -106,9 +106,12 @@ func (b BrokerAPI) Unbind(ctx context.Context, instanceID, bindingID string, det
 
 // GetBinding fetches an existing service binding
 //   GET /v2/service_instances/{instance_id}/service_bindings/{binding_id}
+// TODO(mw): adjust to use details.PlanID when https://github.com/pivotal-cf/brokerapi/pull/138 is merged.
 func (b BrokerAPI) GetBinding(ctx context.Context, instanceID, bindingID string) (domain.GetBindingSpec, error) {
-	spec := domain.GetBindingSpec{}
-	return spec, errors.New("not implemented")
+	logger := requestScopedLogger(ctx, b.logger).WithData(lager.Data{"instance-id": instanceID, "binding-id": bindingID})
+	logger.Info("get-binding", lager.Data{"binding-id": bindingID})
+
+	return b.broker.GetBinding(ctx, instanceID, bindingID)
 }
 
 // LastBindingOperation fetches last operation state for a service binding
