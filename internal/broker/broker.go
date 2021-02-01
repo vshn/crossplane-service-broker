@@ -1,7 +1,6 @@
 package broker
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 
@@ -12,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/vshn/crossplane-service-broker/internal/crossplane"
+	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
 )
 
 var (
@@ -24,64 +24,62 @@ var (
 )
 
 type Broker struct {
-	cp     *crossplane.Crossplane
-	logger lager.Logger
+	cp *crossplane.Crossplane
 }
 
-func New(cp *crossplane.Crossplane, logger lager.Logger) *Broker {
+func New(cp *crossplane.Crossplane) *Broker {
 	return &Broker{
-		cp:     cp,
-		logger: logger,
+		cp: cp,
 	}
 }
 
 // Services retrieves registered services and plans.
-func (b Broker) Services(ctx context.Context) ([]domain.Service, error) {
+func (b Broker) Services(rctx *reqcontext.ReqContext) ([]domain.Service, error) {
 	services := make([]domain.Service, 0)
 
-	xrds, err := b.cp.ServiceXRDs(ctx)
+	xrds, err := b.cp.ServiceXRDs(rctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, xrd := range xrds {
-		plans, err := b.servicePlans(ctx, []string{xrd.Labels.ServiceID})
+		plans, err := b.servicePlans(rctx, []string{xrd.Labels.ServiceID})
 		if err != nil {
-			b.logger.Error("plan retrieval failed", err, lager.Data{"serviceId": xrd.Labels.ServiceID})
+			rctx.Logger.Error("plan retrieval failed", err, lager.Data{"serviceId": xrd.Labels.ServiceID})
 		}
 
-		services = append(services, newService(xrd, plans, b.logger))
+		services = append(services, newService(xrd, plans, rctx.Logger))
 	}
 
 	return services, nil
 }
 
 // servicePlans retrieves a combined view of services and their plans.
-func (b Broker) servicePlans(ctx context.Context, serviceIDs []string) ([]domain.ServicePlan, error) {
+func (b Broker) servicePlans(rctx *reqcontext.ReqContext, serviceIDs []string) ([]domain.ServicePlan, error) {
 	plans := make([]domain.ServicePlan, 0)
 
-	compositions, err := b.cp.Plans(ctx, serviceIDs)
+	compositions, err := b.cp.Plans(rctx, serviceIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, c := range compositions {
-		plans = append(plans, newServicePlan(c, b.logger))
+		plans = append(plans, newServicePlan(c, rctx.Logger))
 	}
 
 	return plans, nil
 }
 
 // Provision creates a new service instance.
-func (b Broker) Provision(ctx context.Context, instanceID, planID string, params json.RawMessage) (domain.ProvisionedServiceSpec, error) {
+func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string, params json.RawMessage) (domain.ProvisionedServiceSpec, error) {
 	res := domain.ProvisionedServiceSpec{}
 
-	p, err := b.cp.Plan(ctx, planID)
+	p, err := b.cp.Plan(rctx, planID)
 	if err != nil {
 		return res, err
 	}
 
-	_, exists, err := b.cp.Instance(ctx, instanceID, p)
+	_, exists, err := b.cp.Instance(rctx, instanceID, p)
 	if err != nil {
 		return res, err
 	}
@@ -95,7 +93,7 @@ func (b Broker) Provision(ctx context.Context, instanceID, planID string, params
 		return res, apiresponses.ErrInstanceAlreadyExists
 	}
 
-	err = b.cp.CreateInstance(ctx, instanceID, p, params)
+	err = b.cp.CreateInstance(rctx, instanceID, p, params)
 	if err != nil {
 		return res, err
 	}
@@ -104,36 +102,36 @@ func (b Broker) Provision(ctx context.Context, instanceID, planID string, params
 	return res, nil
 }
 
-func (b Broker) Deprovision(ctx context.Context, instanceID, planID string) (domain.DeprovisionServiceSpec, error) {
+func (b Broker) Deprovision(rctx *reqcontext.ReqContext, instanceID, planID string) (domain.DeprovisionServiceSpec, error) {
 	res := domain.DeprovisionServiceSpec{
 		IsAsync: false,
 	}
 
-	p, instance, err := b.getPlanInstance(ctx, planID, instanceID)
+	p, instance, err := b.getPlanInstance(rctx, planID, instanceID)
 	if err != nil {
 		return res, err
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
 	if err != nil {
 		return res, err
 	}
-	if err := sb.Deprovisionable(ctx); err != nil {
+	if err := sb.Deprovisionable(rctx.Context); err != nil {
 		return res, err
 	}
 
-	if err := b.cp.DeleteInstance(ctx, instance.Composite.GetName(), p); err != nil {
+	if err := b.cp.DeleteInstance(rctx, instance.Composite.GetName(), p); err != nil {
 		return res, err
 	}
 	return res, nil
 }
 
-func (b Broker) Bind(ctx context.Context, instanceID, bindingID, planID string) (domain.Binding, error) {
+func (b Broker) Bind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID string) (domain.Binding, error) {
 	res := domain.Binding{
 		IsAsync: false,
 	}
 
-	_, instance, err := b.getPlanInstance(ctx, planID, instanceID)
+	_, instance, err := b.getPlanInstance(rctx, planID, instanceID)
 	if err != nil {
 		return res, err
 	}
@@ -141,18 +139,18 @@ func (b Broker) Bind(ctx context.Context, instanceID, bindingID, planID string) 
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
 	if err != nil {
 		return res, err
 	}
 
 	if fp, ok := sb.(crossplane.FinishProvisioner); ok {
-		if err := fp.FinishProvision(ctx); err != nil {
+		if err := fp.FinishProvision(rctx.Context); err != nil {
 			return res, err
 		}
 	}
 
-	creds, err := sb.Bind(ctx, bindingID)
+	creds, err := sb.Bind(rctx.Context, bindingID)
 	if err != nil {
 		return res, err
 	}
@@ -162,12 +160,12 @@ func (b Broker) Bind(ctx context.Context, instanceID, bindingID, planID string) 
 	return res, nil
 }
 
-func (b Broker) Unbind(ctx context.Context, instanceID, bindingID, planID string) (domain.UnbindSpec, error) {
+func (b Broker) Unbind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID string) (domain.UnbindSpec, error) {
 	res := domain.UnbindSpec{
 		IsAsync: false,
 	}
 
-	_, instance, err := b.getPlanInstance(ctx, planID, instanceID)
+	_, instance, err := b.getPlanInstance(rctx, planID, instanceID)
 	if err != nil {
 		return res, err
 	}
@@ -175,22 +173,22 @@ func (b Broker) Unbind(ctx context.Context, instanceID, bindingID, planID string
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
 	if err != nil {
 		return res, err
 	}
 
-	err = sb.Unbind(ctx, bindingID)
+	err = sb.Unbind(rctx.Context, bindingID)
 	if err != nil {
 		return res, err
 	}
 	return res, nil
 }
 
-func (b Broker) LastOperation(ctx context.Context, instanceID, planID string) (domain.LastOperation, error) {
+func (b Broker) LastOperation(rctx *reqcontext.ReqContext, instanceID, planID string) (domain.LastOperation, error) {
 	res := domain.LastOperation{}
 
-	_, instance, err := b.getPlanInstance(ctx, planID, instanceID)
+	_, instance, err := b.getPlanInstance(rctx, planID, instanceID)
 	if err != nil {
 		return res, err
 	}
@@ -205,30 +203,30 @@ func (b Broker) LastOperation(ctx context.Context, instanceID, planID string) (d
 	switch condition.Reason {
 	case xrv1.ReasonAvailable:
 		res.State = domain.Succeeded
-		sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+		sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
 		if err != nil {
 			return res, err
 		}
 		if fp, ok := sb.(crossplane.FinishProvisioner); ok {
-			if err := fp.FinishProvision(ctx); err != nil {
+			if err := fp.FinishProvision(rctx.Context); err != nil {
 				return res, err
 			}
 		}
-		b.logger.Info("provision-succeeded", lager.Data{"reason": condition.Reason, "message": condition.Message})
+		rctx.Logger.Info("provision-succeeded", lager.Data{"reason": condition.Reason, "message": condition.Message})
 	case xrv1.ReasonCreating:
 		res.State = domain.InProgress
-		b.logger.Info("provision-in-progress", lager.Data{"reason": condition.Reason, "message": condition.Message})
+		rctx.Logger.Info("provision-in-progress", lager.Data{"reason": condition.Reason, "message": condition.Message})
 	case xrv1.ReasonUnavailable, xrv1.ReasonDeleting:
-		b.logger.Info("provision-failed", lager.Data{"reason": condition.Reason, "message": condition.Message})
+		rctx.Logger.Info("provision-failed", lager.Data{"reason": condition.Reason, "message": condition.Message})
 		res.State = domain.Failed
 	}
 	return res, nil
 }
 
-func (b Broker) GetBinding(ctx context.Context, instanceID, bindingID string) (domain.GetBindingSpec, error) {
+func (b Broker) GetBinding(rctx *reqcontext.ReqContext, instanceID, bindingID string) (domain.GetBindingSpec, error) {
 	res := domain.GetBindingSpec{}
 
-	_, instance, err := b.getPlanInstance(ctx, "", instanceID)
+	_, instance, err := b.getPlanInstance(rctx, "", instanceID)
 	if err != nil {
 		return res, err
 	}
@@ -236,12 +234,12 @@ func (b Broker) GetBinding(ctx context.Context, instanceID, bindingID string) (d
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, b.logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
 	if err != nil {
 		return res, err
 	}
 
-	creds, err := sb.GetBinding(ctx, bindingID)
+	creds, err := sb.GetBinding(rctx.Context, bindingID)
 	if err != nil {
 		return res, err
 	}
@@ -251,10 +249,10 @@ func (b Broker) GetBinding(ctx context.Context, instanceID, bindingID string) (d
 	return res, nil
 }
 
-func (b Broker) GetInstance(ctx context.Context, instanceID string) (domain.GetInstanceDetailsSpec, error) {
+func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string) (domain.GetInstanceDetailsSpec, error) {
 	res := domain.GetInstanceDetailsSpec{}
 
-	p, instance, err := b.getPlanInstance(ctx, "", instanceID)
+	p, instance, err := b.getPlanInstance(rctx, "", instanceID)
 	if err != nil {
 		return res, err
 	}
@@ -271,10 +269,10 @@ func (b Broker) GetInstance(ctx context.Context, instanceID string) (domain.GetI
 	return res, nil
 }
 
-func (b Broker) Update(ctx context.Context, instanceID, serviceID, oldPlanID, newPlanID string) (domain.UpdateServiceSpec, error) {
+func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPlanID, newPlanID string) (domain.UpdateServiceSpec, error) {
 	res := domain.UpdateServiceSpec{}
 
-	_, instance, err := b.getPlanInstance(ctx, oldPlanID, instanceID)
+	_, instance, err := b.getPlanInstance(rctx, oldPlanID, instanceID)
 	if err != nil {
 		return res, err
 	}
@@ -282,7 +280,7 @@ func (b Broker) Update(ctx context.Context, instanceID, serviceID, oldPlanID, ne
 		return res, ErrServiceUpdateNotPermitted
 	}
 
-	np, err := b.cp.Plan(ctx, newPlanID)
+	np, err := b.cp.Plan(rctx, newPlanID)
 	if err != nil {
 		return res, err
 	}
@@ -328,18 +326,18 @@ func (b Broker) Update(ctx context.Context, instanceID, serviceID, oldPlanID, ne
 	}
 	instance.Composite.SetLabels(instanceLabels)
 
-	if err := b.cp.UpdateInstance(ctx, instance, np); err != nil {
+	if err := b.cp.UpdateInstance(rctx, instance, np); err != nil {
 		return res, err
 	}
 
 	return res, nil
 }
 
-func (b Broker) getPlanInstance(ctx context.Context, planID, instanceID string) (*crossplane.Plan, *crossplane.Instance, error) {
+func (b Broker) getPlanInstance(rctx *reqcontext.ReqContext, planID, instanceID string) (*crossplane.Plan, *crossplane.Instance, error) {
 	if planID == "" {
-		b.logger.Info("find-instance-without-plan", lager.Data{"instance-id": instanceID})
+		rctx.Logger.Info("find-instance-without-plan", lager.Data{"instance-id": instanceID})
 
-		instance, p, exists, err := b.cp.FindInstanceWithoutPlan(ctx, instanceID)
+		instance, p, exists, err := b.cp.FindInstanceWithoutPlan(rctx, instanceID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -348,12 +346,12 @@ func (b Broker) getPlanInstance(ctx context.Context, planID, instanceID string) 
 		}
 		return p, instance, nil
 	}
-	p, err := b.cp.Plan(ctx, planID)
+	p, err := b.cp.Plan(rctx, planID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	instance, exists, err := b.cp.Instance(ctx, instanceID, p)
+	instance, exists, err := b.cp.Instance(rctx, instanceID, p)
 	if err != nil {
 		return nil, nil, err
 	}

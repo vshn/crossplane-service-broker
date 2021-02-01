@@ -175,7 +175,7 @@ func (msb MariadbDatabaseServiceBinder) createBinding(ctx context.Context, bindi
 		return "", err
 	}
 
-	msb.cp.logger.Debug("create-binding", lager.Data{"instance": cmp})
+	msb.logger.Debug("create-binding", lager.Data{"instance": cmp})
 	err = msb.cp.client.Create(ctx, cmp)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return "", err
