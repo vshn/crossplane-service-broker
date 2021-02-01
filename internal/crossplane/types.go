@@ -25,13 +25,13 @@ func (p Plan) GVK() (schema.GroupVersionKind, error) {
 	return groupVersion.WithKind(p.Composition.Spec.CompositeTypeRef.Kind), nil
 }
 
-func newPlan(c *xv1.Composition) (*Plan, error) {
+func newPlan(c xv1.Composition) (*Plan, error) {
 	l, err := parseLabels(c.Labels)
 	if err != nil {
 		return nil, err
 	}
 	return &Plan{
-		Composition: c,
+		Composition: &c,
 		Labels:      l,
 		Metadata:    c.Annotations[MetadataAnnotation],
 		Tags:        c.Annotations[TagsAnnotation],
