@@ -702,9 +702,43 @@ func TestBrokerAPI_Bind(t *testing.T) {
 					newService("1", crossplane.MariaDBService),
 					servicePlan.Composition,
 					instance,
-					newSecret(testNamespace, "creds", map[string]string{
+					newSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+					}),
+				})(c)
+				if err != nil {
+					return err
+				}
+
+				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+			},
+			want:    nil,
+			wantErr: errors.New(`service MariaDB Galera Cluster is not bindable. You can create a bindable database on this cluster using cf create-service mariadb-k8s-database default my-mariadb-db -c '{"parent_reference": "1-1-1"}' (correlation-id: "corrid")`),
+		},
+		{
+			name: "creates a mariadb instance and tries to bind it without having endpoint in secret",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.BindDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				err := createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.MariaDBService),
+					newService("2", crossplane.MariaDBDatabaseService),
+					servicePlan.Composition,
+					instance,
+					newSecret(testNamespace, "1-1-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
 				})(c)
@@ -1468,6 +1502,11 @@ func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplan
 	}
 	if parent != "" {
 		labels[crossplane.ParentIDLabel] = parent
+		cmp.Object["spec"] = map[string]interface{}{
+			"parameters": map[string]interface{}{
+				"parent_reference": parent,
+			},
+		}
 	}
 	cmp.SetLabels(labels)
 	cmp.SetResourceReferences([]corev1.ObjectReference{
