@@ -24,6 +24,8 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
 )
 
 // errInstanceNotFound is an instance doesn't exist
@@ -32,7 +34,6 @@ var errInstanceNotFound = errors.New("instance not found")
 // Crossplane client to access crossplane resources.
 type Crossplane struct {
 	client     k8sclient.Client
-	logger     lager.Logger
 	serviceIDs []string
 	namespace  string
 }
@@ -58,7 +59,7 @@ func Register(scheme *runtime.Scheme) error {
 }
 
 // New instantiates a crossplane client.
-func New(serviceIDs []string, namespace string, config *rest.Config, logger lager.Logger) (*Crossplane, error) {
+func New(serviceIDs []string, namespace string, config *rest.Config) (*Crossplane, error) {
 	scheme := runtime.NewScheme()
 	if err := Register(scheme); err != nil {
 		return nil, err
@@ -74,7 +75,6 @@ func New(serviceIDs []string, namespace string, config *rest.Config, logger lage
 
 	cp := Crossplane{
 		client:     k,
-		logger:     logger,
 		serviceIDs: serviceIDs,
 		namespace:  namespace,
 	}
@@ -91,7 +91,7 @@ type ServiceXRD struct {
 }
 
 // ServiceXRDs retrieves all defined services (defined by XRDs with the ServiceIDLabel) on the cluster.
-func (cp Crossplane) ServiceXRDs(ctx context.Context) ([]*ServiceXRD, error) {
+func (cp Crossplane) ServiceXRDs(rctx *reqcontext.ReqContext) ([]*ServiceXRD, error) {
 	xrds := &xv1.CompositeResourceDefinitionList{}
 
 	req, err := labels.NewRequirement(ServiceIDLabel, selection.In, cp.serviceIDs)
@@ -99,7 +99,7 @@ func (cp Crossplane) ServiceXRDs(ctx context.Context) ([]*ServiceXRD, error) {
 		return nil, err
 	}
 
-	err = cp.client.List(ctx, xrds, client.MatchingLabelsSelector{
+	err = cp.client.List(rctx.Context, xrds, client.MatchingLabelsSelector{
 		Selector: labels.NewSelector().Add(*req),
 	})
 	if err != nil {
@@ -126,14 +126,14 @@ func (cp Crossplane) ServiceXRDs(ctx context.Context) ([]*ServiceXRD, error) {
 
 // Plans retrieves all plans per passed service. Plans are deployed Compositions with the ServiceIDLabel
 // assigned. The plans are ordered by name.
-func (cp Crossplane) Plans(ctx context.Context, serviceIDs []string) ([]*Plan, error) {
+func (cp Crossplane) Plans(rctx *reqcontext.ReqContext, serviceIDs []string) ([]*Plan, error) {
 	req, err := labels.NewRequirement(ServiceIDLabel, selection.In, serviceIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	compositions := &xv1.CompositionList{}
-	err = cp.client.List(ctx, compositions, client.MatchingLabelsSelector{
+	err = cp.client.List(rctx.Context, compositions, client.MatchingLabelsSelector{
 		Selector: labels.NewSelector().Add(*req),
 	})
 	sort.Slice(compositions.Items, func(i, j int) bool {
@@ -154,9 +154,9 @@ func (cp Crossplane) Plans(ctx context.Context, serviceIDs []string) ([]*Plan, e
 
 // Plan retrieves a single plan as deployed using a Composition. The planID corresponds to the
 // Compositions name.
-func (cp Crossplane) Plan(ctx context.Context, planID string) (*Plan, error) {
+func (cp Crossplane) Plan(rctx *reqcontext.ReqContext, planID string) (*Plan, error) {
 	composition := xv1.Composition{}
-	err := cp.client.Get(ctx, types.NamespacedName{Name: planID}, &composition)
+	err := cp.client.Get(rctx.Context, types.NamespacedName{Name: planID}, &composition)
 	if err != nil {
 		return nil, err
 	}
@@ -170,13 +170,13 @@ func (cp Crossplane) Plan(ctx context.Context, planID string) (*Plan, error) {
 // FIXME(mw): is it correct to return `false, errInstanceNotFound` if PlanNameLabel does not match? And how should that be handled?
 //            Ported from PoC code as-is, and errInstanceNotFound is handled as instance really not found, however as the ID exists, how
 //            can we speak about having no instance with that name? It's a UUID after all.
-func (cp Crossplane) Instance(ctx context.Context, id string, plan *Plan) (inst *Instance, ok bool, err error) {
+func (cp Crossplane) Instance(rctx *reqcontext.ReqContext, id string, plan *Plan) (inst *Instance, ok bool, err error) {
 	gvk, err := plan.GVK()
 
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
 	cmp.SetName(id)
 
-	err = cp.client.Get(ctx, types.NamespacedName{
+	err = cp.client.Get(rctx.Context, types.NamespacedName{
 		Name: id,
 	}, cmp)
 	if err != nil {
@@ -202,13 +202,13 @@ func (cp Crossplane) Instance(ctx context.Context, id string, plan *Plan) (inst 
 // FindInstanceWithoutPlan is used for retrieving an instance when the plan is unknown.
 // It needs to iterate through all plans and fetch the instance using the supplied GVK.
 // There's probably an optimization to be done here, as this seems fairly shitty, but for now it works.
-func (cp Crossplane) FindInstanceWithoutPlan(ctx context.Context, id string) (inst *Instance, p *Plan, ok bool, err error) {
-	plans, err := cp.Plans(ctx, cp.serviceIDs)
+func (cp Crossplane) FindInstanceWithoutPlan(rctx *reqcontext.ReqContext, id string) (inst *Instance, p *Plan, ok bool, err error) {
+	plans, err := cp.Plans(rctx, cp.serviceIDs)
 	if err != nil {
 		return nil, nil, false, err
 	}
 	for _, plan := range plans {
-		instance, exists, err := cp.Instance(ctx, id, plan)
+		instance, exists, err := cp.Instance(rctx, id, plan)
 		if err != nil {
 			if err == errInstanceNotFound {
 				// plan didn't match
@@ -226,7 +226,7 @@ func (cp Crossplane) FindInstanceWithoutPlan(ctx context.Context, id string) (in
 
 // CreateInstance sets a new composite with assigned plan and params up.
 // TODO(mw): simplify, refactor
-func (cp Crossplane) CreateInstance(ctx context.Context, id string, plan *Plan, params json.RawMessage) error {
+func (cp Crossplane) CreateInstance(rctx *reqcontext.ReqContext, id string, plan *Plan, params json.RawMessage) error {
 	l := map[string]string{
 		InstanceIDLabel: id,
 	}
@@ -259,23 +259,23 @@ func (cp Crossplane) CreateInstance(ctx context.Context, id string, plan *Plan, 
 		return err
 	}
 	cmp.SetLabels(l)
-	cp.logger.Debug("create-instance", lager.Data{"instance": cmp})
-	return cp.client.Create(ctx, cmp)
+	rctx.Logger.Debug("create-instance", lager.Data{"instance": cmp})
+	return cp.client.Create(rctx.Context, cmp)
 }
 
 // UpdateInstance updates `instance` on k8s.
-func (cp *Crossplane) UpdateInstance(ctx context.Context, instance *Instance, plan *Plan) error {
+func (cp *Crossplane) UpdateInstance(rctx *reqcontext.ReqContext, instance *Instance, plan *Plan) error {
 	gvk, err := plan.GVK()
 	if err != nil {
 		return err
 	}
 	instance.Composite.SetGroupVersionKind(gvk)
 
-	return cp.client.Update(ctx, instance.Composite.GetUnstructured())
+	return cp.client.Update(rctx.Context, instance.Composite.GetUnstructured())
 }
 
 // DeleteInstance deletes a service instance
-func (cp *Crossplane) DeleteInstance(ctx context.Context, instanceName string, plan *Plan) error {
+func (cp *Crossplane) DeleteInstance(rctx *reqcontext.ReqContext, instanceName string, plan *Plan) error {
 	gvk, err := plan.GVK()
 	if err != nil {
 		return err
@@ -284,7 +284,7 @@ func (cp *Crossplane) DeleteInstance(ctx context.Context, instanceName string, p
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
 	cmp.SetName(instanceName)
 
-	return cp.client.Delete(ctx, cmp)
+	return cp.client.Delete(rctx.Context, cmp)
 }
 
 func (cp *Crossplane) getCredentials(ctx context.Context, name string) (*corev1.Secret, error) {

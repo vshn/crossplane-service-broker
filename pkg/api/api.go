@@ -10,7 +10,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pivotal-cf/brokerapi/v7"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
-	"github.com/pivotal-cf/brokerapi/v7/middlewares"
+
+	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
 )
 
 type API struct {
@@ -29,7 +30,7 @@ func New(sb domain.ServiceBroker, username, password string, logger lager.Logger
 
 	osbRoutes := brokerapi.New(sb, logger, brokerapi.BrokerCredentials{Username: username, Password: password})
 
-	router.Use(loggerMiddleware(logger))
+	osbRoutes.(*mux.Router).Use(loggerMiddleware(logger))
 
 	router.NewRoute().Handler(osbRoutes)
 
@@ -43,20 +44,17 @@ func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func loggerMiddleware(logger lager.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			id, ok := req.Context().Value(middlewares.CorrelationIDKey).(string)
-			if !ok {
-				id = "unknown"
-			}
+			rctx := reqcontext.NewReqContext(req.Context(), logger, nil)
+
 			headers := req.Header.Clone()
 			if auth := headers.Get("Authorization"); auth != "" {
 				headers.Set("Authorization", "****")
 			}
-			logger.WithData(lager.Data{
-				"correlation-id": id,
-				"headers":        headers,
-				"URI":            req.RequestURI,
-				"method":         req.Method,
-			}).Debug("debug-headers")
+			rctx.Logger.Debug("debug-headers", lager.Data{
+				"headers": headers,
+				"URI":     req.RequestURI,
+				"method":  req.Method,
+			})
 			next.ServeHTTP(w, req)
 		})
 	}

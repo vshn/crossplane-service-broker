@@ -110,7 +110,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -273,7 +273,7 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -411,7 +411,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -583,7 +583,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -729,7 +729,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -833,7 +833,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -940,7 +940,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -1170,7 +1170,7 @@ func TestBrokerAPI_Update(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -1284,7 +1284,7 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 			defer m.Cleanup()
 			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp, logger)
+			b := broker.New(cp)
 
 			bAPI := BrokerAPI{
 				broker: b,
@@ -1549,7 +1549,7 @@ func setupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 
 	logger := lager.NewLogger("test")
 
-	cp, err := crossplane.New([]string{"1", "2"}, testNamespace, m.GetConfig(), logger)
+	cp, err := crossplane.New([]string{"1", "2"}, testNamespace, m.GetConfig())
 	if err != nil {
 		return nil, nil, nil, err
 	}
