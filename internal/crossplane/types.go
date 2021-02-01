@@ -44,16 +44,28 @@ type Instance struct {
 	Labels    *Labels
 }
 
+func (i Instance) ID() string {
+	return i.Composite.GetName()
+}
+
 func (i Instance) Ready() bool {
 	return i.Composite.GetCondition(xrv1.TypeReady).Status == corev1.ConditionTrue
 }
 
-func (i Instance) Parameters() (interface{}, error) {
+func (i Instance) Parameters() map[string]interface{} {
 	p, err := fieldpath.Pave(i.Composite.Object).GetValue(instanceSpecParamsPath)
-	if fieldpath.IsNotFound(err) {
-		return nil, nil
+	if err != nil {
+		p = make(map[string]interface{})
 	}
-	return p, err
+	v, ok := p.(map[string]interface{})
+	if !ok {
+		return make(map[string]interface{})
+	}
+	return v
+}
+
+func (i Instance) ResourceRefs() []corev1.ObjectReference {
+	return i.Composite.GetResourceReferences()
 }
 
 func newInstance(c *composite.Unstructured) (*Instance, error) {
@@ -65,4 +77,8 @@ func newInstance(c *composite.Unstructured) (*Instance, error) {
 		Composite: c,
 		Labels:    l,
 	}, nil
+}
+
+type MariaDBProvisionAdditionalParams struct {
+	ParentReference string `json:"parent_reference"`
 }

@@ -2,6 +2,7 @@ package crossplane
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -25,9 +26,9 @@ type Endpoint struct {
 	Protocol string
 }
 
-type Service string
+type ServiceName string
 
-func (s Service) IsValid() bool {
+func (s ServiceName) IsValid() bool {
 	switch s {
 	case RedisService, MariaDBService, MariaDBDatabaseService:
 		return true
@@ -36,9 +37,9 @@ func (s Service) IsValid() bool {
 }
 
 var (
-	RedisService           Service = "redis-k8s"
-	MariaDBService         Service = "mariadb-k8s"
-	MariaDBDatabaseService Service = "mariadb-k8s-database"
+	RedisService           ServiceName = "redis-k8s"
+	MariaDBService         ServiceName = "mariadb-k8s"
+	MariaDBDatabaseService ServiceName = "mariadb-k8s-database"
 )
 
 // ServiceBinder is an interface for service specific implementation for binding,
@@ -56,17 +57,23 @@ type FinishProvisioner interface {
 	FinishProvision(ctx context.Context) error
 }
 
+// ProvisionValidater enables service implementations to check required additional params.
+type ProvisionValidater interface {
+	// ValidateProvisionParams can be used to check the params for validity. If valid, it should return all needed parameters
+	// for the composition.
+	ValidateProvisionParams(ctx context.Context, params json.RawMessage) (map[string]interface{}, error)
+}
+
 // ServiceBinderFactory reads the composite's labels service name and instantiates an appropriate ServiceBinder.
 // FIXME(mw): determine fate of this. We might not need differentiation anymore, once provider-helm is upgraded.
-func ServiceBinderFactory(c *Crossplane, instance *Instance, logger lager.Logger) (ServiceBinder, error) {
-	serviceName := instance.Labels.ServiceName
+func ServiceBinderFactory(c *Crossplane, serviceName ServiceName, id string, resourceRefs []corev1.ObjectReference, params map[string]interface{}, logger lager.Logger) (ServiceBinder, error) {
 	switch serviceName {
 	case RedisService:
-		return NewRedisServiceBinder(c, instance, logger), nil
+		return NewRedisServiceBinder(c, resourceRefs, logger), nil
 	case MariaDBService:
-		return NewMariadbServiceBinder(c, instance, logger), nil
+		return NewMariadbServiceBinder(c, id, logger), nil
 	case MariaDBDatabaseService:
-		return NewMariadbDatabaseServiceBinder(c, instance, logger), nil
+		return NewMariadbDatabaseServiceBinder(c, id, params, logger), nil
 	}
 	return nil, fmt.Errorf("service binder %q not implemented", serviceName)
 }

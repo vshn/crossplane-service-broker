@@ -2,7 +2,6 @@ package crossplane
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -225,8 +224,7 @@ func (cp Crossplane) FindInstanceWithoutPlan(rctx *reqcontext.ReqContext, id str
 }
 
 // CreateInstance sets a new composite with assigned plan and params up.
-// TODO(mw): simplify, refactor
-func (cp Crossplane) CreateInstance(rctx *reqcontext.ReqContext, id string, plan *Plan, params json.RawMessage) error {
+func (cp Crossplane) CreateInstance(rctx *reqcontext.ReqContext, id string, plan *Plan, params map[string]interface{}) error {
 	l := map[string]string{
 		InstanceIDLabel: id,
 	}
@@ -245,17 +243,13 @@ func (cp Crossplane) CreateInstance(rctx *reqcontext.ReqContext, id string, plan
 	cmp.SetCompositionReference(&corev1.ObjectReference{
 		Name: plan.Composition.Name,
 	})
-	paramMap := map[string]interface{}{}
-	if params != nil {
-		if err := json.Unmarshal(params, &paramMap); err != nil {
-			return err
-		}
-		if parentReference, err := fieldpath.Pave(paramMap).GetString(instanceParamsParentReferenceName); err == nil {
-			// Set parent reference in a label so we can search for it later.
-			l[ParentIDLabel] = parentReference
-		}
+	// slightly ugly having this service specific label setting leaking out to the generic code. Can be cleaned up later
+	// in case more specific code is needed.
+	if params[instanceParamsParentReferenceName] != nil {
+		// Additionally set parent reference in a label so we can search for it later.
+		l[ParentIDLabel] = params[instanceParamsParentReferenceName].(string)
 	}
-	if err := fieldpath.Pave(cmp.Object).SetValue(instanceSpecParamsPath, paramMap); err != nil {
+	if err := fieldpath.Pave(cmp.Object).SetValue(instanceSpecParamsPath, params); err != nil {
 		return err
 	}
 	cmp.SetLabels(l)

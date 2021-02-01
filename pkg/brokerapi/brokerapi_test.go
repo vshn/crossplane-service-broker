@@ -634,12 +634,13 @@ func TestBrokerAPI_Bind(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
-		name      string
-		fields    fields
-		args      args
-		want      *domain.Binding
-		wantErr   error
-		resources func() (func(c client.Client) error, []runtime.Object)
+		name               string
+		fields             fields
+		args               args
+		want               *domain.Binding
+		wantComparisonFunc assert.ComparisonAssertionFunc
+		wantErr            error
+		resources          func() (func(c client.Client) error, []runtime.Object)
 	}{
 		{
 			name: "requires instance to be ready before binding",
@@ -697,7 +698,8 @@ func TestBrokerAPI_Bind(t *testing.T) {
 					"password": "supersecret",
 				},
 			},
-			wantErr: nil,
+			wantComparisonFunc: assert.Equal,
+			wantErr:            nil,
 		},
 		{
 			name: "creates a mariadb instance and tries to bind it",
@@ -758,10 +760,10 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				}, objs
 			},
 			want:    nil,
-			wantErr: errors.New(`service MariaDB Galera Cluster is not bindable. You can create a bindable database on this cluster using cf create-service mariadb-k8s-database default my-mariadb-db -c '{"parent_reference": "1-1-1"}' (correlation-id: "corrid")`),
+			wantErr: errors.New(`FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation. (correlation-id: "corrid")`),
 		},
 		{
-			name: "creates a mariadb instance and tries to bind a database instance to it",
+			name: "creates a mariadb instance and binds a database instance to it",
 			args: args{
 				ctx:        ctx,
 				instanceID: "1-2-1",
@@ -771,36 +773,67 @@ func TestBrokerAPI_Bind(t *testing.T) {
 					ServiceID: "2",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
 				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
 				dbServicePlan := newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
-				dbInstance := newInstance("1-2-1", servicePlan, crossplane.MariaDBDatabaseService, "", "")
-				err := createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				dbInstance := newInstance("1-2-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1")
+				objs := []runtime.Object{
 					newService("1", crossplane.MariaDBService),
 					newService("2", crossplane.MariaDBDatabaseService),
 					servicePlan.Composition,
 					instance,
 					dbServicePlan.Composition,
 					dbInstance,
-					newSecret(testNamespace, "1-2-1", map[string]string{
+					newSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				if err := updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable); err != nil {
-					return err
-				}
-				return updateInstanceConditions(ctx, c, dbServicePlan, dbInstance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				return func(c client.Client) error {
+					if err := updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable); err != nil {
+						return err
+					}
+					return updateInstanceConditions(ctx, c, dbServicePlan, dbInstance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
 			},
-			want:    nil,
-			wantErr: errors.New(`FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation. (correlation-id: "corrid")`),
+			want: &domain.Binding{
+				IsAsync: false,
+				Credentials: crossplane.Credentials{
+					"host":         "localhost",
+					"hostname":     "localhost",
+					"port":         int32(1234),
+					"name":         "1-2-1",
+					"database":     "1-2-1",
+					"user":         nil,
+					"password":     "***",
+					"database_uri": "***",
+					"uri":          "***",
+					"jdbcUrl":      "***",
+				},
+			},
+			wantComparisonFunc: func(t assert.TestingT, expected, actual interface{}, msgAndArgs ...interface{}) bool {
+				want := expected.(domain.Binding)
+				got := actual.(domain.Binding)
+
+				assert.Equal(t, want.IsAsync, got.IsAsync)
+
+				wantCreds := want.Credentials.(crossplane.Credentials)
+				gotCreds := got.Credentials.(crossplane.Credentials)
+
+				assert.Equal(t, len(wantCreds), len(gotCreds))
+				for k, v := range wantCreds {
+					if v == "***" {
+						assert.Contains(t, gotCreds, k, k)
+					} else {
+						assert.Equal(t, v, gotCreds[k], k)
+					}
+				}
+				return true
+
+			},
+			wantErr: nil,
 		},
 	}
 
@@ -836,7 +869,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
-			assert.Equal(t, *tt.want, got)
+			tt.wantComparisonFunc(t, *tt.want, got)
 		})
 	}
 }
@@ -1443,7 +1476,7 @@ func getInstance(ctx context.Context, c client.Client, servicePlan *crossplane.P
 	return cmp, nil
 }
 
-func newService(serviceID string, serviceName crossplane.Service) *xv1.CompositeResourceDefinition {
+func newService(serviceID string, serviceName crossplane.ServiceName) *xv1.CompositeResourceDefinition {
 	return &xv1.CompositeResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "service",
@@ -1473,7 +1506,7 @@ func newService(serviceID string, serviceName crossplane.Service) *xv1.Composite
 	}
 }
 
-func newServicePlan(serviceID string, planID string, serviceName crossplane.Service) *crossplane.Plan {
+func newServicePlan(serviceID string, planID string, serviceName crossplane.ServiceName) *crossplane.Plan {
 	name := "small" + planID
 	return &crossplane.Plan{
 		Labels: &crossplane.Labels{
@@ -1508,7 +1541,7 @@ func newServicePlan(serviceID string, planID string, serviceName crossplane.Serv
 	}
 }
 
-func newServicePlanWithSize(serviceID string, planID string, serviceName crossplane.Service, name string, sla string) *crossplane.Plan {
+func newServicePlanWithSize(serviceID string, planID string, serviceName crossplane.ServiceName, name string, sla string) *crossplane.Plan {
 	return &crossplane.Plan{
 		Labels: &crossplane.Labels{
 			ServiceID:   serviceID,
@@ -1547,7 +1580,7 @@ func newServicePlanWithSize(serviceID string, planID string, serviceName crosspl
 	}
 }
 
-func kindForService(name crossplane.Service) string {
+func kindForService(name crossplane.ServiceName) string {
 	switch name {
 	case crossplane.RedisService:
 		return "CompositeRedisInstance"
@@ -1559,7 +1592,7 @@ func kindForService(name crossplane.Service) string {
 	return "CompositeInstance"
 }
 
-func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.Service, serviceID, parent string) *composite.Unstructured {
+func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.ServiceName, serviceID, parent string) *composite.Unstructured {
 	gvk, _ := plan.GVK()
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
 	cmp.SetName(instanceID)

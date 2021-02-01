@@ -49,7 +49,7 @@ const (
 )
 
 type Labels struct {
-	ServiceName Service
+	ServiceName ServiceName
 	ServiceID   string
 	PlanName    string
 	PlanSize    string
@@ -65,7 +65,7 @@ func parseLabels(l map[string]string) (*Labels, error) {
 	name := l[PlanNameLabel]
 	sla := l[SLALabel]
 	md := Labels{
-		ServiceName: Service(l[ServiceNameLabel]),
+		ServiceName: ServiceName(l[ServiceNameLabel]),
 		ServiceID:   l[ServiceIDLabel],
 		PlanName:    name,
 		PlanSize:    getPlanSize(name, sla),

@@ -11,19 +11,17 @@ import (
 
 // RedisServiceBinder defines a specific redis service with enough data to retrieve connection credentials.
 type RedisServiceBinder struct {
-	instanceID string
-	resources  []corev1.ObjectReference
-	cp         *Crossplane
-	logger     lager.Logger
+	resourceRefs []corev1.ObjectReference
+	cp           *Crossplane
+	logger       lager.Logger
 }
 
 // NewRedisServiceBinder instantiates a redis service instance based on the given CompositeRedisInstance.
-func NewRedisServiceBinder(c *Crossplane, instance *Instance, logger lager.Logger) *RedisServiceBinder {
+func NewRedisServiceBinder(c *Crossplane, resourceRefs []corev1.ObjectReference, logger lager.Logger) *RedisServiceBinder {
 	return &RedisServiceBinder{
-		instanceID: instance.Composite.GetName(),
-		resources:  instance.Composite.GetResourceReferences(),
-		cp:         c,
-		logger:     logger,
+		resourceRefs: resourceRefs,
+		cp:           c,
+		logger:       logger,
 	}
 }
 
@@ -46,7 +44,7 @@ func (rsb RedisServiceBinder) Deprovisionable(ctx context.Context) error {
 func (rsb RedisServiceBinder) GetBinding(ctx context.Context, _ string) (Credentials, error) {
 	creds := make(Credentials)
 
-	secrets := findResourceRefs(rsb.resources, "Secret")
+	secrets := findResourceRefs(rsb.resourceRefs, "Secret")
 	if len(secrets) != 1 {
 		return nil, errors.New("resourceRef contains more than one secret")
 	}
