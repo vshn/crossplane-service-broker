@@ -143,7 +143,7 @@ func (cp Crossplane) Plans(ctx context.Context, serviceIDs []string) ([]*Plan, e
 
 	plans := make([]*Plan, len(compositions.Items))
 	for i, c := range compositions.Items {
-		p, err := newPlan(&c)
+		p, err := newPlan(c)
 		if err != nil {
 			return nil, err
 		}
@@ -156,8 +156,8 @@ func (cp Crossplane) Plans(ctx context.Context, serviceIDs []string) ([]*Plan, e
 // Plan retrieves a single plan as deployed using a Composition. The planID corresponds to the
 // Compositions name.
 func (cp Crossplane) Plan(ctx context.Context, planID string) (*Plan, error) {
-	composition := &xv1.Composition{}
-	err := cp.client.Get(ctx, types.NamespacedName{Name: planID}, composition)
+	composition := xv1.Composition{}
+	err := cp.client.Get(ctx, types.NamespacedName{Name: planID}, &composition)
 	if err != nil {
 		return nil, err
 	}

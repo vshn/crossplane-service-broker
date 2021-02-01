@@ -59,6 +59,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 			preRunFn: createObjects(context.TODO(), []runtime.Object{
 				newService("1", crossplane.RedisService),
 				newServicePlan("1", "1-1", crossplane.RedisService).Composition,
+				newServicePlan("1", "1-2", crossplane.RedisService).Composition,
 			}),
 			want: []domain.Service{
 				{
@@ -73,6 +74,16 @@ func TestBrokerAPI_Services(t *testing.T) {
 						{
 							ID:          "1-1",
 							Name:        "small1-1",
+							Description: "testservice-small plan description",
+							Free:        boolPtr(false),
+							Bindable:    boolPtr(false),
+							Metadata: &domain.ServicePlanMetadata{
+								DisplayName: "small",
+							},
+						},
+						{
+							ID:          "1-2",
+							Name:        "small1-2",
 							Description: "testservice-small plan description",
 							Free:        boolPtr(false),
 							Bindable:    boolPtr(false),
@@ -882,7 +893,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 				})(c)
 			},
 			want: &domain.GetInstanceDetailsSpec{
-				PlanID:     "1-2",
+				PlanID:     "1-1",
 				ServiceID:  "1",
 				Parameters: nil,
 			},
@@ -910,7 +921,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 				})(c)
 			},
 			want: &domain.GetInstanceDetailsSpec{
-				PlanID:    "1-2",
+				PlanID:    "1-1",
 				ServiceID: "1",
 				Parameters: map[string]interface{}{
 					"parent_reference": "1",
