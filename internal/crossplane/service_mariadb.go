@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"code.cloudfoundry.org/lager"
+	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -92,5 +93,15 @@ func (msb MariadbServiceBinder) GetBinding(_ context.Context, _ string) (Credent
 
 // FIXME(mw): FinishProvision might be needed, but probably not.
 func (msb MariadbServiceBinder) FinishProvision(ctx context.Context) error {
+	s, err := msb.cp.getCredentials(ctx, msb.instanceID)
+	if err != nil {
+		return err
+	}
+
+	// having an endpoint in the secret means fetching the endpoint via HaProxy
+	// has been successfully implemented using provider-helm.
+	if s.Data[xrv1.ResourceCredentialsSecretEndpointKey] != nil {
+		return nil
+	}
 	return errors.New("FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation.")
 }
