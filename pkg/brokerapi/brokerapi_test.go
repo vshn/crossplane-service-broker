@@ -758,6 +758,48 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				}, objs
 			},
 			want:    nil,
+			wantErr: errors.New(`service MariaDB Galera Cluster is not bindable. You can create a bindable database on this cluster using cf create-service mariadb-k8s-database default my-mariadb-db -c '{"parent_reference": "1-1-1"}' (correlation-id: "corrid")`),
+		},
+		{
+			name: "creates a mariadb instance and tries to bind a database instance to it",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-2-1",
+				bindingID:  "2",
+				details: domain.BindDetails{
+					PlanID:    "2-1",
+					ServiceID: "2",
+				},
+			},
+			preRunFn: func(c client.Client) error {
+				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				dbServicePlan := newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				dbInstance := newInstance("1-2-1", servicePlan, crossplane.MariaDBDatabaseService, "", "")
+				err := createObjects(context.TODO(), []runtime.Object{
+					newNamespace(testNamespace),
+					newService("1", crossplane.MariaDBService),
+					newService("2", crossplane.MariaDBDatabaseService),
+					servicePlan.Composition,
+					instance,
+					dbServicePlan.Composition,
+					dbInstance,
+					newSecret(testNamespace, "1-2-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+					}),
+				})(c)
+				if err != nil {
+					return err
+				}
+
+				if err := updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable); err != nil {
+					return err
+				}
+				return updateInstanceConditions(ctx, c, dbServicePlan, dbInstance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+			},
+			want:    nil,
 			wantErr: errors.New(`FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation. (correlation-id: "corrid")`),
 		},
 	}
