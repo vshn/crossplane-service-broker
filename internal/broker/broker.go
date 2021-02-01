@@ -3,6 +3,7 @@ package broker
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -91,7 +92,22 @@ func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string
 		return res, apiresponses.ErrInstanceAlreadyExists
 	}
 
-	err = b.cp.CreateInstance(rctx, instanceID, p, params)
+	ap := map[string]interface{}{}
+	if params != nil {
+		// ServiceBinderFactory is used out of convenience, however it seems the wrong approach here - might refactor later.
+		sb, err := crossplane.ServiceBinderFactory(b.cp, p.Labels.ServiceName, "", nil, nil, rctx.Logger)
+		if err != nil {
+			return res, err
+		}
+		if pv, ok := sb.(crossplane.ProvisionValidater); ok {
+			ap, err = pv.ValidateProvisionParams(rctx.Context, params)
+			if err != nil {
+				return res, apiresponses.NewFailureResponse(err, http.StatusBadRequest, "validate-provision-failed")
+			}
+		}
+	}
+
+	err = b.cp.CreateInstance(rctx, instanceID, p, ap)
 	if err != nil {
 		return res, err
 	}
@@ -110,7 +126,7 @@ func (b Broker) Deprovision(rctx *reqcontext.ReqContext, instanceID, planID stri
 		return res, err
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
 	if err != nil {
 		return res, err
 	}
@@ -137,7 +153,7 @@ func (b Broker) Bind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID 
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
 	if err != nil {
 		return res, err
 	}
@@ -171,7 +187,7 @@ func (b Broker) Unbind(rctx *reqcontext.ReqContext, instanceID, bindingID, planI
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
 	if err != nil {
 		return res, err
 	}
@@ -201,7 +217,7 @@ func (b Broker) LastOperation(rctx *reqcontext.ReqContext, instanceID, planID st
 	switch condition.Reason {
 	case xrv1.ReasonAvailable:
 		res.State = domain.Succeeded
-		sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
+		sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
 		if err != nil {
 			return res, err
 		}
@@ -232,7 +248,7 @@ func (b Broker) GetBinding(rctx *reqcontext.ReqContext, instanceID, bindingID st
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance, rctx.Logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
 	if err != nil {
 		return res, err
 	}
@@ -255,14 +271,13 @@ func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string) (dom
 		return res, err
 	}
 
-	params, err := instance.Parameters()
-	if err != nil {
-		return res, err
-	}
-
 	res.PlanID = p.Composition.GetName()
 	res.ServiceID = p.Labels.ServiceID
-	res.Parameters = params
+
+	params := instance.Parameters()
+	if len(params) > 0 {
+		res.Parameters = params
+	}
 
 	return res, nil
 }

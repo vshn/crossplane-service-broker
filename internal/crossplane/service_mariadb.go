@@ -10,39 +10,40 @@ import (
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
 	// errNotImplemented is the error returned for not implmemented functions
-	errNotImplemented = apiresponses.
-		NewFailureResponseBuilder(
-			errors.New("not implemented"),
-			http.StatusNotImplemented,
-			"not-implemented").
+	errNotImplemented = apiresponses.NewFailureResponseBuilder(
+		errors.New("not implemented"),
+		http.StatusNotImplemented,
+		"not-implemented").
 		WithErrorKey("NotImplemented").
 		Build()
+
+	mariaDBGroupVersionKind = schema.GroupVersionKind{
+		Group:   "syn.tools",
+		Version: "v1alpha1",
+		Kind:    "CompositeMariaDBInstance",
+	}
 )
 
 // MariadbServiceBinder defines a specific Mariadb service with enough data to retrieve connection credentials.
 type MariadbServiceBinder struct {
-	instanceID     string
-	instanceLabels *Labels
-	resources      []corev1.ObjectReference
-	cp             *Crossplane
-	logger         lager.Logger
+	id     string
+	cp     *Crossplane
+	logger lager.Logger
 }
 
 // NewMariadbServiceBinder instantiates a Mariadb service instance based on the given CompositeMariadbInstance.
-func NewMariadbServiceBinder(c *Crossplane, instance *Instance, logger lager.Logger) *MariadbServiceBinder {
+func NewMariadbServiceBinder(c *Crossplane, id string, logger lager.Logger) *MariadbServiceBinder {
 	return &MariadbServiceBinder{
-		instanceID:     instance.Composite.GetName(),
-		instanceLabels: instance.Labels,
-		resources:      instance.Composite.GetResourceReferences(),
-		cp:             c,
-		logger:         logger,
+		id:     id,
+		cp:     c,
+		logger: logger,
 	}
 }
 
@@ -51,7 +52,7 @@ func (msb MariadbServiceBinder) Bind(_ context.Context, _ string) (Credentials, 
 	return nil, apiresponses.NewFailureResponseBuilder(
 		fmt.Errorf("service MariaDB Galera Cluster is not bindable. "+
 			"You can create a bindable database on this cluster using "+
-			"cf create-service mariadb-k8s-database default my-mariadb-db -c '{\"parent_reference\": %q}'", msb.instanceID),
+			"cf create-service mariadb-k8s-database default my-mariadb-db -c '{\"%s\": %q}'", instanceParamsParentReferenceName, msb.id),
 		http.StatusUnprocessableEntity,
 		"binding-not-supported",
 	).WithErrorKey("BindingNotSupported").Build()
@@ -65,10 +66,9 @@ func (msb MariadbServiceBinder) Unbind(_ context.Context, _ string) error {
 // Deprovisionable checks if no DBs exist for this instance anymore.
 func (msb MariadbServiceBinder) Deprovisionable(ctx context.Context) error {
 	instanceList := &unstructured.UnstructuredList{}
-	instanceList.SetGroupVersionKind(groupVersionKind)
-	instanceList.SetKind("CompositeMariaDBDatabaseInstanceList")
+	instanceList.SetGroupVersionKind(mariaDBDatabaseGroupVersionKind)
 	if err := msb.cp.client.List(ctx, instanceList, client.MatchingLabels{
-		ParentIDLabel: msb.instanceID,
+		ParentIDLabel: msb.id,
 	}); err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (msb MariadbServiceBinder) GetBinding(_ context.Context, _ string) (Credent
 
 // FIXME(mw): FinishProvision might be needed, but probably not.
 func (msb MariadbServiceBinder) FinishProvision(ctx context.Context) error {
-	s, err := msb.cp.getCredentials(ctx, msb.instanceID)
+	s, err := msb.cp.getCredentials(ctx, msb.id)
 	if err != nil {
 		return err
 	}
