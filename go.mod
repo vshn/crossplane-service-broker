@@ -7,7 +7,7 @@ require (
 	github.com/crossplane/crossplane v1.0.0
 	github.com/crossplane/crossplane-runtime v0.12.0
 	github.com/go-logr/logr v0.3.0 // indirect
-	github.com/go-logr/zapr v0.3.0
+	github.com/go-logr/zapr v0.4.0
 	github.com/go-openapi/spec v0.19.5 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/mattn/go-colorable v0.1.4 // indirect
