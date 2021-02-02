@@ -15,8 +15,6 @@ import (
 )
 
 var (
-	// ErrInstanceNotFound is an instance doesn't exist
-	ErrInstanceNotFound = errors.New("instance not found")
 	// ErrServiceUpdateNotPermitted when updating an instance
 	ErrServiceUpdateNotPermitted = errors.New("service update not permitted")
 	// ErrPlanChangeNotPermitted when updating an instance's plan (only premium<->standard is permitted)

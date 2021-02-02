@@ -104,8 +104,6 @@ func (b BrokerAPI) Update(ctx context.Context, instanceID string, details domain
 		switch err {
 		case broker.ErrPlanChangeNotPermitted, broker.ErrServiceUpdateNotPermitted:
 			err = apiresponses.NewFailureResponse(err, http.StatusUnprocessableEntity, "update-instance-failed")
-		case broker.ErrInstanceNotFound:
-			err = apiresponses.ErrInstanceDoesNotExist
 		}
 		return res, toApiResponseError(rctx, err)
 	}

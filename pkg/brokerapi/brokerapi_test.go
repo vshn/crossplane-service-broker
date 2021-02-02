@@ -12,7 +12,6 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
 	"github.com/crossplane/crossplane-runtime/pkg/test/integration"
 	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
@@ -34,7 +33,7 @@ import (
 	"github.com/vshn/crossplane-service-broker/internal/crossplane"
 )
 
-type preRunFunc func(c client.Client) error
+type prePostRunFunc func(c client.Client) error
 type customCheckFunc func(t *testing.T, c client.Client)
 
 const testNamespace = "test"
@@ -45,21 +44,21 @@ func TestBrokerAPI_Services(t *testing.T) {
 		logger lager.Logger
 	}
 	tests := []struct {
-		name     string
-		fields   fields
-		ctx      context.Context
-		want     []domain.Service
-		wantErr  bool
-		preRunFn preRunFunc
+		name      string
+		fields    fields
+		ctx       context.Context
+		want      []domain.Service
+		wantErr   bool
+		resources []runtime.Object
 	}{
 		{
 			name: "returns the catalog successfully",
 			ctx:  context.TODO(),
-			preRunFn: createObjects(context.TODO(), []runtime.Object{
+			resources: []runtime.Object{
 				newService("1", crossplane.RedisService),
 				newServicePlan("1", "1-1", crossplane.RedisService).Composition,
 				newServicePlan("1", "1-2", crossplane.RedisService).Composition,
-			}),
+			},
 			want: []domain.Service{
 				{
 					ID:                   "1",
@@ -100,22 +99,27 @@ func TestBrokerAPI_Services(t *testing.T) {
 		},
 	}
 
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
-			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
+			require.NoError(t, createObjects(tt.ctx, tt.resources)(m.GetClient()))
+			defer func() {
+				require.NoError(t, removeObjects(tt.ctx, tt.resources)(m.GetClient()))
+			}()
 
-			b := broker.New(cp)
-
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
-			}
 			got, err := bAPI.Services(tt.ctx)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -143,12 +147,12 @@ func TestBrokerAPI_Provision(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     *domain.ProvisionedServiceSpec
-		wantErr  error
-		preRunFn preRunFunc
+		name      string
+		fields    fields
+		args      args
+		want      *domain.ProvisionedServiceSpec
+		wantErr   error
+		resources func() []runtime.Object
 	}{
 		{
 			name: "requires async",
@@ -158,10 +162,10 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				details:      domain.ProvisionDetails{},
 				asyncAllowed: false,
 			},
-			preRunFn: func(c client.Client) error {
+			want: nil,
+			resources: func() []runtime.Object {
 				return nil
 			},
-			want:    nil,
 			wantErr: errors.New(`This service plan requires client support for asynchronous service operations. (correlation-id: "corrid")`),
 		},
 		{
@@ -174,10 +178,10 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				},
 				asyncAllowed: true,
 			},
-			preRunFn: func(c client.Client) error {
+			want: nil,
+			resources: func() []runtime.Object {
 				return nil
 			},
-			want:    nil,
 			wantErr: errors.New(`compositions.apiextensions.crossplane.io "1-1" not found (correlation-id: "corrid")`),
 		},
 		{
@@ -191,10 +195,12 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				},
 				asyncAllowed: true,
 			},
-			preRunFn: createObjects(context.TODO(), []runtime.Object{
-				newService("1", crossplane.RedisService),
-				newServicePlan("1", "1-1", crossplane.RedisService).Composition,
-			}),
+			resources: func() []runtime.Object {
+				return []runtime.Object{
+					newService("1", crossplane.RedisService),
+					newServicePlan("1", "1-1", crossplane.RedisService).Composition,
+				}
+			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
 			wantErr: nil,
 		},
@@ -209,15 +215,15 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				},
 				asyncAllowed: true,
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() []runtime.Object {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
-				return createObjects(context.TODO(), []runtime.Object{
+				return []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1", servicePlan, crossplane.RedisService, "", ""),
-				})(c)
+					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+				}
 			},
 			want:    &domain.ProvisionedServiceSpec{AlreadyExists: true},
 			wantErr: nil,
@@ -233,10 +239,12 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				},
 				asyncAllowed: true,
 			},
-			preRunFn: createObjects(context.TODO(), []runtime.Object{
-				newService("1", crossplane.MariaDBService),
-				newServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
-			}),
+			resources: func() []runtime.Object {
+				return []runtime.Object{
+					newService("1", crossplane.MariaDBService),
+					newServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+				}
+			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
 			wantErr: nil,
 		},
@@ -252,33 +260,39 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				},
 				asyncAllowed: true,
 			},
-			preRunFn: createObjects(context.TODO(), []runtime.Object{
-				newService("1", crossplane.MariaDBService),
-				newServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
-				newService("2", crossplane.MariaDBDatabaseService),
-				newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService).Composition,
-			}),
+			resources: func() []runtime.Object {
+				return []runtime.Object{
+					newService("1", crossplane.MariaDBService),
+					newServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+					newService("2", crossplane.MariaDBDatabaseService),
+					newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService).Composition,
+				}
+			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
 			wantErr: nil,
 		},
 	}
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
-			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
+			require.NoError(t, createObjects(tt.args.ctx, tt.resources())(m.GetClient()))
+			defer func() {
+				require.NoError(t, removeObjects(tt.args.ctx, tt.resources())(m.GetClient()))
+			}()
 
-			b := broker.New(cp)
-
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
-			}
 			got, err := bAPI.Provision(tt.args.ctx, tt.args.instanceID, tt.args.details, tt.args.asyncAllowed)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
@@ -310,7 +324,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 		args          args
 		want          *domain.DeprovisionServiceSpec
 		wantErr       error
-		preRunFn      preRunFunc
+		resources     func() []runtime.Object
 		customCheckFn customCheckFunc
 	}{
 		{
@@ -323,12 +337,12 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 					ServiceID: "1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() []runtime.Object {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				return createObjects(context.TODO(), []runtime.Object{
+				return []runtime.Object{
 					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
-				})(c)
+				}
 			},
 			customCheckFn: nil,
 			want:          nil,
@@ -345,15 +359,14 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				},
 				asyncAllowed: true,
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() []runtime.Object {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-
-				return createObjects(context.TODO(), []runtime.Object{
+				return []runtime.Object{
 					service,
 					servicePlan.Composition,
 					newInstance("1", servicePlan, crossplane.RedisService, "", ""),
-				})(c)
+				}
 			},
 			customCheckFn: func(t *testing.T, c client.Client) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
@@ -374,49 +387,52 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				},
 				asyncAllowed: true,
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() []runtime.Object {
 				service := newService("1", crossplane.MariaDBService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
 				mdbs := newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
 
 				dbInstance := newInstance("2", mdbs, crossplane.MariaDBDatabaseService, "", "1")
-				dbInstance.Object["spec"] = map[string]interface{}{
-					"parameters": map[string]interface{}{
-						"parent_reference": "1",
-					},
-				}
 
-				return createObjects(context.TODO(), []runtime.Object{
+				return []runtime.Object{
 					service,
 					servicePlan.Composition,
 					newService("2", crossplane.MariaDBDatabaseService),
 					mdbs.Composition,
 					newInstance("1", servicePlan, crossplane.MariaDBService, "", ""),
 					dbInstance,
-				})(c)
+				}
 			},
-			customCheckFn: nil,
-			want:          nil,
-			wantErr:       errors.New(`instance is still in use by "2" (correlation-id: "corrid")`),
+			want:    nil,
+			wantErr: errors.New(`instance is still in use by "2" (correlation-id: "corrid")`),
 		},
+	}
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
-			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
+			objs := tt.resources()
+			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			defer func() {
+				// if wantErr == nil, the instance is gone already and would error when trying to remove it again.
+				if tt.wantErr == nil {
+					objs = objs[:len(objs)-1]
+				}
+				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+			}()
 
-			b := broker.New(cp)
-
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
-			}
 			got, err := bAPI.Deprovision(tt.args.ctx, tt.args.instanceID, tt.args.details, tt.args.asyncAllowed)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
@@ -446,12 +462,12 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     *domain.LastOperation
-		wantErr  error
-		preRunFn preRunFunc
+		name      string
+		fields    fields
+		args      args
+		want      *domain.LastOperation
+		wantErr   error
+		resources func() (func(c client.Client) error, []runtime.Object)
 	}{
 		{
 			name: "returns in progress state on unknown condition",
@@ -462,15 +478,15 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 					PlanID: "1-1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
-				return createObjects(context.TODO(), []runtime.Object{
+				return nil, []runtime.Object{
 					service,
 					servicePlan.Composition,
 					newInstance("1", servicePlan, crossplane.RedisService, "", ""),
-				})(c)
+				}
 			},
 			want: &domain.LastOperation{
 				Description: "Unknown",
@@ -487,21 +503,19 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 					PlanID: "1-1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
 				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
-				err := createObjects(context.TODO(), []runtime.Object{
+				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
 					instance,
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonCreating)
+				return func(c client.Client) error {
+					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonCreating)
+				}, objs
 			},
 			want: &domain.LastOperation{
 				Description: string(xrv1.ReasonCreating),
@@ -518,21 +532,19 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 					PlanID: "1-1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
 				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
-				err := createObjects(context.TODO(), []runtime.Object{
+				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
 					instance,
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				return func(c client.Client) error {
+					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
 			},
 			want: &domain.LastOperation{
 				Description: string(xrv1.ReasonAvailable),
@@ -549,21 +561,19 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 					PlanID: "1-1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				service := newService("1", crossplane.RedisService)
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 
 				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
-				err := createObjects(context.TODO(), []runtime.Object{
+				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
 					instance,
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonUnavailable)
+				return func(c client.Client) error {
+					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonUnavailable)
+				}, objs
 			},
 			want: &domain.LastOperation{
 				Description: string(xrv1.ReasonUnavailable),
@@ -572,23 +582,32 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 			wantErr: nil,
 		},
 	}
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
+			fn, objs := tt.resources()
+			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			if fn != nil {
+				require.NoError(t, fn(m.GetClient()))
 			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
 
-			b := broker.New(cp)
+			defer func() {
+				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+			}()
 
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
-			}
 			got, err := bAPI.LastOperation(tt.args.ctx, tt.args.instanceID, tt.args.details)
 			if tt.wantErr != nil {
 				assert.EqualError(t, err, tt.wantErr.Error())
@@ -615,12 +634,12 @@ func TestBrokerAPI_Bind(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     *domain.Binding
-		wantErr  error
-		preRunFn preRunFunc
+		name      string
+		fields    fields
+		args      args
+		want      *domain.Binding
+		wantErr   error
+		resources func() (func(c client.Client) error, []runtime.Object)
 	}{
 		{
 			name: "requires instance to be ready before binding",
@@ -633,13 +652,13 @@ func TestBrokerAPI_Bind(t *testing.T) {
 					ServiceID: "1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				return createObjects(context.TODO(), []runtime.Object{
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
 					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
-				})(c)
+				}
 			},
 			want:    nil,
 			wantErr: errors.New(`instance is being updated and cannot be retrieved (correlation-id: "corrid")`),
@@ -655,25 +674,22 @@ func TestBrokerAPI_Bind(t *testing.T) {
 					ServiceID: "1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
-				err := createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				objs := []runtime.Object{
 					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
 					instance,
-					newSecret(testNamespace, "creds", map[string]string{
+					newSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				return func(c client.Client) error {
+					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
 			},
 			want: &domain.Binding{
 				IsAsync: false,
@@ -694,11 +710,10 @@ func TestBrokerAPI_Bind(t *testing.T) {
 					ServiceID: "1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
 				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
-				err := createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				objs := []runtime.Object{
 					newService("1", crossplane.MariaDBService),
 					servicePlan.Composition,
 					instance,
@@ -707,12 +722,10 @@ func TestBrokerAPI_Bind(t *testing.T) {
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				return func(c client.Client) error {
+					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
 			},
 			want:    nil,
 			wantErr: errors.New(`service MariaDB Galera Cluster is not bindable. You can create a bindable database on this cluster using cf create-service mariadb-k8s-database default my-mariadb-db -c '{"parent_reference": "1-1-1"}' (correlation-id: "corrid")`),
@@ -728,46 +741,50 @@ func TestBrokerAPI_Bind(t *testing.T) {
 					ServiceID: "1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
 				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
-				err := createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				objs := []runtime.Object{
 					newService("1", crossplane.MariaDBService),
-					newService("2", crossplane.MariaDBDatabaseService),
 					servicePlan.Composition,
 					instance,
 					newSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				return func(c client.Client) error {
+					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
 			},
 			want:    nil,
 			wantErr: errors.New(`FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation. (correlation-id: "corrid")`),
 		},
 	}
 
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
-			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
-
-			b := broker.New(cp)
-
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
+			fn, objs := tt.resources()
+			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			defer func() {
+				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+			}()
+			if fn != nil {
+				require.NoError(t, fn(m.GetClient()))
 			}
 
 			got, err := bAPI.Bind(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details, false)
@@ -795,12 +812,12 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     *domain.GetBindingSpec
-		wantErr  error
-		preRunFn preRunFunc
+		name      string
+		fields    fields
+		args      args
+		want      *domain.GetBindingSpec
+		wantErr   error
+		resources func() (func(c client.Client) error, []runtime.Object)
 	}{
 		{
 			name: "requires instance to be ready before getting a binding",
@@ -809,13 +826,14 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 				instanceID: "1-1-1",
 				bindingID:  "1",
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				return createObjects(context.TODO(), []runtime.Object{
+				objs := []runtime.Object{
 					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
 					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
-				})(c)
+				}
+				return nil, objs
 			},
 			want:    nil,
 			wantErr: errors.New(`instance is being updated and cannot be retrieved (correlation-id: "corrid")`),
@@ -827,26 +845,23 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 				instanceID: "1-1-1",
 				bindingID:  "1",
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
-				err := createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				objs := []runtime.Object{
 					newService("1", crossplane.RedisService),
 					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
-					newSecret(testNamespace, "creds", map[string]string{
+					newSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				return func(c client.Client) error {
+					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
 			},
 			want: &domain.GetBindingSpec{
 				Credentials: crossplane.Credentials{
@@ -856,22 +871,29 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 			wantErr: nil,
 		},
 	}
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
-			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
-
-			b := broker.New(cp)
-
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
+			fn, objs := tt.resources()
+			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			defer func() {
+				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+			}()
+			if fn != nil {
+				require.NoError(t, fn(m.GetClient()))
 			}
 
 			got, err := bAPI.GetBinding(tt.args.ctx, tt.args.instanceID, tt.args.bindingID)
@@ -899,12 +921,12 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     *domain.GetInstanceDetailsSpec
-		wantErr  error
-		preRunFn preRunFunc
+		name      string
+		fields    fields
+		args      args
+		want      *domain.GetInstanceDetailsSpec
+		wantErr   error
+		resources func() (func(c client.Client) error, []runtime.Object)
 	}{
 		{
 			name: "gets an instance without parameters",
@@ -913,17 +935,16 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 				instanceID: "1-1-1",
 				bindingID:  "1",
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 
-				return createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
-				})(c)
+				}
 			},
 			want: &domain.GetInstanceDetailsSpec{
 				PlanID:     "1-1",
@@ -940,18 +961,16 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 				instanceID: "1-1-1",
 				bindingID:  "1",
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "")
-				_ = fieldpath.Pave(instance.Object).SetValue("spec.parameters.parent_reference", "1")
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
 
-				return createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				return nil, []runtime.Object{
 					newService("1", crossplane.MariaDBDatabaseService),
 					newServicePlan("1", "1-2", crossplane.MariaDBDatabaseService).Composition,
 					servicePlan.Composition,
 					instance,
-				})(c)
+				}
 			},
 			want: &domain.GetInstanceDetailsSpec{
 				PlanID:    "1-1",
@@ -963,22 +982,29 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 			wantErr: nil,
 		},
 	}
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
-			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
-
-			b := broker.New(cp)
-
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
+			fn, objs := tt.resources()
+			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			defer func() {
+				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+			}()
+			if fn != nil {
+				require.NoError(t, fn(m.GetClient()))
 			}
 
 			got, err := bAPI.GetInstance(tt.args.ctx, tt.args.instanceID)
@@ -1007,12 +1033,12 @@ func TestBrokerAPI_Update(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     *domain.UpdateServiceSpec
-		wantErr  error
-		preRunFn preRunFunc
+		name      string
+		fields    fields
+		args      args
+		want      *domain.UpdateServiceSpec
+		wantErr   error
+		resources func() (func(c client.Client) error, []runtime.Object)
 	}{
 		{
 			name: "service update not permitted",
@@ -1028,19 +1054,18 @@ func TestBrokerAPI_Update(t *testing.T) {
 					},
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
-				return createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					newService("2", crossplane.RedisService),
 					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
 					newServicePlan("2", "2-1", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
-				})(c)
+				}
 			},
 			want:    nil,
 			wantErr: errors.New(`service update not permitted (correlation-id: "corrid")`),
@@ -1059,18 +1084,17 @@ func TestBrokerAPI_Update(t *testing.T) {
 					},
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
-				return createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					newService("2", crossplane.RedisService),
 					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "large", "standard").Composition,
 					servicePlan.Composition,
 					instance,
-				})(c)
+				}
 			},
 			want:    nil,
 			wantErr: errors.New(`plan change not permitted (correlation-id: "corrid")`),
@@ -1089,18 +1113,17 @@ func TestBrokerAPI_Update(t *testing.T) {
 					},
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
-				return createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					newService("2", crossplane.RedisService),
 					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
-				})(c)
+				}
 			},
 			want:    &domain.UpdateServiceSpec{},
 			wantErr: nil,
@@ -1116,18 +1139,17 @@ func TestBrokerAPI_Update(t *testing.T) {
 					PlanID:    "1-2",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
-				return createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					newService("2", crossplane.RedisService),
 					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
-				})(c)
+				}
 			},
 			want:    &domain.UpdateServiceSpec{},
 			wantErr: nil,
@@ -1146,18 +1168,17 @@ func TestBrokerAPI_Update(t *testing.T) {
 					},
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small-premium", "premium")
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
-				return createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					newService("2", crossplane.RedisService),
 					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small", "standard").Composition,
 					servicePlan.Composition,
 					instance,
-				})(c)
+				}
 			},
 			want:    &domain.UpdateServiceSpec{},
 			wantErr: nil,
@@ -1176,39 +1197,45 @@ func TestBrokerAPI_Update(t *testing.T) {
 					},
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "super-large", "standard")
 				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
-				return createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					newService("2", crossplane.RedisService),
 					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "super-large-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
-				})(c)
+				}
 			},
 			want:    &domain.UpdateServiceSpec{},
 			wantErr: nil,
 		},
 	}
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
-			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
-
-			b := broker.New(cp)
-
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
+			fn, objs := tt.resources()
+			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			defer func() {
+				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+			}()
+			if fn != nil {
+				require.NoError(t, fn(m.GetClient()))
 			}
 
 			got, err := bAPI.Update(tt.args.ctx, tt.args.instanceID, tt.args.details, false)
@@ -1237,12 +1264,12 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		want     *domain.UnbindSpec
-		wantErr  error
-		preRunFn preRunFunc
+		name      string
+		fields    fields
+		args      args
+		want      *domain.UnbindSpec
+		wantErr   error
+		resources func() (func(c client.Client) error, []runtime.Object)
 	}{
 		{
 			name: "requires instance to be ready before unbinding",
@@ -1255,13 +1282,13 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 					ServiceID: "1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				return createObjects(context.TODO(), []runtime.Object{
+				return nil, []runtime.Object{
 					newService("1", crossplane.RedisService),
 					servicePlan.Composition,
 					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
-				})(c)
+				}
 			},
 			want:    nil,
 			wantErr: errors.New(`instance is being updated and cannot be retrieved (correlation-id: "corrid")`),
@@ -1277,16 +1304,10 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 					ServiceID: "1",
 				},
 			},
-			preRunFn: func(c client.Client) error {
+			resources: func() (func(c client.Client) error, []runtime.Object) {
 				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "")
-				instance.Object["spec"] = map[string]interface{}{
-					"parameters": map[string]interface{}{
-						"parent_reference": "1",
-					},
-				}
-				err := createObjects(context.TODO(), []runtime.Object{
-					newNamespace(testNamespace),
+				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
+				objs := []runtime.Object{
 					newService("1", crossplane.MariaDBDatabaseService),
 					servicePlan.Composition,
 					instance,
@@ -1294,12 +1315,10 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 					newSecret(testNamespace, "binding-1-password", map[string]string{
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
-				})(c)
-				if err != nil {
-					return err
 				}
-
-				return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				return func(c client.Client) error {
+					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
 			},
 			want: &domain.UnbindSpec{
 				IsAsync: false,
@@ -1307,22 +1326,33 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 			wantErr: nil,
 		},
 	}
+	m, logger, cp, err := setupManager(t)
+	if err != nil {
+		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
+		return
+	}
+	defer m.Cleanup()
+
+	b := broker.New(cp)
+
+	bAPI := BrokerAPI{
+		broker: b,
+		logger: logger,
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m, logger, cp, err := setupManager(t)
-			if err != nil {
-				assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-				return
-			}
-			defer m.Cleanup()
-			require.NoError(t, tt.preRunFn(m.GetClient()))
-
-			b := broker.New(cp)
-
-			bAPI := BrokerAPI{
-				broker: b,
-				logger: logger,
+			fn, objs := tt.resources()
+			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			defer func() {
+				// if wantErr == nil, secret must be gone and would error here if we still would try to remove it again
+				if tt.wantErr == nil {
+					objs = objs[:len(objs)-1]
+				}
+				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+			}()
+			if fn != nil {
+				require.NoError(t, fn(m.GetClient()))
 			}
 
 			got, err := bAPI.Unbind(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details, false)
@@ -1514,7 +1544,7 @@ func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplan
 			Kind:       "Secret",
 			Namespace:  testNamespace,
 			APIVersion: "v1",
-			Name:       "creds",
+			Name:       instanceID,
 		},
 	})
 
@@ -1556,10 +1586,21 @@ func newNamespace(name string) *corev1.Namespace {
 	}
 }
 
-func createObjects(ctx context.Context, objs []runtime.Object) preRunFunc {
+func createObjects(ctx context.Context, objs []runtime.Object) prePostRunFunc {
 	return func(c client.Client) error {
 		for _, obj := range objs {
-			if err := c.Create(ctx, obj); err != nil {
+			if err := c.Create(ctx, obj.DeepCopyObject()); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func removeObjects(ctx context.Context, objs []runtime.Object) prePostRunFunc {
+	return func(c client.Client) error {
+		for _, obj := range objs {
+			if err := c.Delete(ctx, obj); err != nil {
 				return err
 			}
 		}
@@ -1587,6 +1628,8 @@ func setupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 	assert.NoError(t, crossplane.Register(scheme))
 
 	logger := lager.NewLogger("test")
+
+	require.NoError(t, createObjects(context.Background(), []runtime.Object{newNamespace(testNamespace)})(m.GetClient()))
 
 	cp, err := crossplane.New([]string{"1", "2"}, testNamespace, m.GetConfig())
 	if err != nil {
