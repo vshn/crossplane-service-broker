@@ -114,7 +114,7 @@ $(TESTDATA_CRD_DIR)/%.yaml:
 	curl -sSLo $@ https://raw.githubusercontent.com/crossplane/crossplane/$(CROSSPLANE_VERSION)/cluster/charts/crossplane/crds/$*.yaml
 
 .PHONY: integration_test
-integration_test: fmt vet $(CROSSPLANE_CRDS)
+integration_test: $(CROSSPLANE_CRDS)
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test -tags=integration -v ./... -coverprofile cover.out
 
 .PHONY: setup_e2e_test
