@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"testing"
@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_readAppConfig(t *testing.T) {
+func Test_ReadConfig(t *testing.T) {
 	tt := map[string]struct {
 		env    map[string]string
-		config *appConfig
+		config *Config
 		err    string
 	}{
 		"serviceIDs required": {
@@ -49,15 +49,15 @@ func Test_readAppConfig(t *testing.T) {
 				"OSB_PASSWORD":    "pw",
 				"OSB_NAMESPACE":   "test",
 			},
-			config: &appConfig{
-				serviceIDs:     []string{"1", "2", "3"},
-				listenAddr:     ":8080",
-				username:       "user",
-				password:       "pw",
-				namespace:      "test",
-				readTimeout:    180 * time.Second,
-				writeTimeout:   180 * time.Second,
-				maxHeaderBytes: 1 << 20,
+			config: &Config{
+				ServiceIDs:     []string{"1", "2", "3"},
+				ListenAddr:     ":8080",
+				Username:       "user",
+				Password:       "pw",
+				Namespace:      "test",
+				ReadTimeout:    180 * time.Second,
+				WriteTimeout:   180 * time.Second,
+				MaxHeaderBytes: 1 << 20,
 			},
 			err: "",
 		},
@@ -65,7 +65,7 @@ func Test_readAppConfig(t *testing.T) {
 
 	for name, v := range tt {
 		t.Run(name, func(t *testing.T) {
-			cfg, err := readAppConfig(func(key string) string {
+			cfg, err := ReadConfig(func(key string) string {
 				return v.env[key]
 			})
 			if v.err != "" {

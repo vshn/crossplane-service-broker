@@ -7,18 +7,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/gorilla/mux"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/vshn/crossplane-service-broker/pkg/api"
 	"github.com/vshn/crossplane-service-broker/pkg/brokerapi"
+	"github.com/vshn/crossplane-service-broker/pkg/config"
 )
 
 const (
@@ -47,32 +45,31 @@ func main() {
 }
 
 func run(signalChan chan os.Signal, logger lager.Logger) error {
-	cfg, err := readAppConfig(os.Getenv)
+	cfg, err := config.ReadConfig(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("unable to read app env: %w", err)
+	}
+	rConfig, err := clientcmd.BuildConfigFromFlags("", cfg.Kubeconfig)
+	if err != nil {
+		return fmt.Errorf("unable to load k8s REST config: %w", err)
 	}
 
 	router := mux.NewRouter()
 
-	config, err := loadRESTConfig(cfg)
+	b, err := brokerapi.New(cfg.ServiceIDs, cfg.Namespace, rConfig, logger.WithData(lager.Data{"component": "brokerapi"}))
 	if err != nil {
 		return err
 	}
 
-	b, err := brokerapi.New(cfg.serviceIDs, cfg.namespace, config, logger.WithData(lager.Data{"component": "brokerapi"}))
-	if err != nil {
-		return err
-	}
-
-	a := api.New(b, cfg.username, cfg.password, logger.WithData(lager.Data{"component": "api"}))
+	a := api.New(b, cfg.Username, cfg.Password, logger.WithData(lager.Data{"component": "api"}))
 	router.NewRoute().Handler(a)
 
 	srv := http.Server{
-		Addr:           cfg.listenAddr,
+		Addr:           cfg.ListenAddr,
 		Handler:        router,
-		ReadTimeout:    cfg.readTimeout,
-		WriteTimeout:   cfg.writeTimeout,
-		MaxHeaderBytes: cfg.maxHeaderBytes,
+		ReadTimeout:    cfg.ReadTimeout,
+		WriteTimeout:   cfg.WriteTimeout,
+		MaxHeaderBytes: cfg.MaxHeaderBytes,
 	}
 
 	go func() {
@@ -94,76 +91,4 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 	graceCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(graceCtx)
-}
-
-func loadRESTConfig(cfg *appConfig) (*rest.Config, error) {
-	if cfg.kubeconfig != "" {
-		return clientcmd.BuildConfigFromFlags("", cfg.kubeconfig)
-	}
-	return rest.InClusterConfig()
-}
-
-type appConfig struct {
-	kubeconfig     string
-	serviceIDs     []string
-	listenAddr     string
-	username       string
-	password       string
-	namespace      string
-	readTimeout    time.Duration
-	writeTimeout   time.Duration
-	maxHeaderBytes int
-}
-
-func readAppConfig(getEnv func(string) string) (*appConfig, error) {
-	cfg := appConfig{
-		kubeconfig: getEnv("KUBECONFIG"),
-		serviceIDs: strings.Split(getEnv("OSB_SERVICE_IDS"), ","),
-		username:   getEnv("OSB_USERNAME"),
-		password:   getEnv("OSB_PASSWORD"),
-		namespace:  getEnv("OSB_NAMESPACE"),
-		listenAddr: getEnv("OSB_HTTP_LISTEN_ADDR"),
-	}
-
-	for i := range cfg.serviceIDs {
-		cfg.serviceIDs[i] = strings.TrimSpace(cfg.serviceIDs[i])
-		if len(cfg.serviceIDs[i]) == 0 {
-			return nil, errors.New("OSB_SERVICE_IDS is required")
-		}
-	}
-
-	if cfg.username == "" {
-		return nil, errors.New("OSB_USERNAME is required")
-	}
-	if cfg.password == "" {
-		return nil, errors.New("OSB_PASSWORD is required")
-	}
-
-	if cfg.namespace == "" {
-		return nil, errors.New("OSB_NAMESPACE is required")
-	}
-
-	if cfg.listenAddr == "" {
-		cfg.listenAddr = ":8080"
-	}
-
-	rt, err := time.ParseDuration(getEnv("OSB_HTTP_READ_TIMEOUT"))
-	if err != nil {
-		rt = 180 * time.Second
-	}
-	cfg.readTimeout = rt
-
-	wt, err := time.ParseDuration(getEnv("OSB_HTTP_WRITE_TIMEOUT"))
-	if err != nil {
-		wt = 180 * time.Second
-	}
-	cfg.writeTimeout = wt
-
-	mhb, err := strconv.Atoi(getEnv("OSB_HTTP_MAX_HEADER_BYTES"))
-	if err != nil {
-		mhb = 1 << 20 // 1 MB
-	}
-	cfg.maxHeaderBytes = mhb
-
-	return &cfg, nil
 }
