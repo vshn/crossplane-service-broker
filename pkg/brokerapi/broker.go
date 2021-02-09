@@ -1,4 +1,4 @@
-package broker
+package brokerapi
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/vshn/crossplane-service-broker/internal/crossplane"
+	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
 )
 
@@ -26,7 +26,7 @@ type Broker struct {
 	cp *crossplane.Crossplane
 }
 
-func New(cp *crossplane.Crossplane) *Broker {
+func NewBroker(cp *crossplane.Crossplane) *Broker {
 	return &Broker{
 		cp: cp,
 	}

@@ -1,4 +1,4 @@
-package broker
+package brokerapi
 
 import (
 	"encoding/json"
@@ -7,7 +7,7 @@ import (
 	"github.com/pivotal-cf/brokerapi/v7/domain"
 	"k8s.io/utils/pointer"
 
-	"github.com/vshn/crossplane-service-broker/internal/crossplane"
+	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 )
 
 func newService(service *crossplane.ServiceXRD, plans []domain.ServicePlan, logger lager.Logger) domain.Service {

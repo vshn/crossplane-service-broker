@@ -30,7 +30,7 @@ func New(sb domain.ServiceBroker, username, password string, logger lager.Logger
 
 	osbRoutes := brokerapi.New(sb, logger, brokerapi.BrokerCredentials{Username: username, Password: password})
 
-	osbRoutes.(*mux.Router).Use(loggerMiddleware(logger))
+	osbRoutes.(*mux.Router).Use(LoggerMiddleware(logger))
 
 	router.NewRoute().Handler(osbRoutes)
 
@@ -41,7 +41,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	a.r.ServeHTTP(w, req)
 }
 
-func loggerMiddleware(logger lager.Logger) mux.MiddlewareFunc {
+func LoggerMiddleware(logger lager.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			rctx := reqcontext.NewReqContext(req.Context(), logger, nil)

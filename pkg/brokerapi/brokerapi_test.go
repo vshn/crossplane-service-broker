@@ -29,8 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/vshn/crossplane-service-broker/internal/broker"
-	"github.com/vshn/crossplane-service-broker/internal/crossplane"
+	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 )
 
 type prePostRunFunc func(c client.Client) error
@@ -40,7 +39,7 @@ const testNamespace = "test"
 
 func TestBrokerAPI_Services(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	tests := []struct {
@@ -55,9 +54,9 @@ func TestBrokerAPI_Services(t *testing.T) {
 			name: "returns the catalog successfully",
 			ctx:  context.TODO(),
 			resources: []runtime.Object{
-				newService("1", crossplane.RedisService),
-				newServicePlan("1", "1-1", crossplane.RedisService).Composition,
-				newServicePlan("1", "1-2", crossplane.RedisService).Composition,
+				newTestService("1", crossplane.RedisService),
+				newTestServicePlan("1", "1-1", crossplane.RedisService).Composition,
+				newTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
 			},
 			want: []domain.Service{
 				{
@@ -106,7 +105,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -135,7 +134,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 
 func TestBrokerAPI_Provision(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	type args struct {
@@ -197,8 +196,8 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			},
 			resources: func() []runtime.Object {
 				return []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newServicePlan("1", "1-1", crossplane.RedisService).Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestServicePlan("1", "1-1", crossplane.RedisService).Composition,
 				}
 			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
@@ -216,13 +215,13 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				asyncAllowed: true,
 			},
 			resources: func() []runtime.Object {
-				service := newService("1", crossplane.RedisService)
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				service := newTestService("1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 
 				return []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+					newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			want:    &domain.ProvisionedServiceSpec{AlreadyExists: true},
@@ -241,8 +240,8 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			},
 			resources: func() []runtime.Object {
 				return []runtime.Object{
-					newService("1", crossplane.MariaDBService),
-					newServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+					newTestService("1", crossplane.MariaDBService),
+					newTestServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
 				}
 			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
@@ -262,10 +261,10 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			},
 			resources: func() []runtime.Object {
 				return []runtime.Object{
-					newService("1", crossplane.MariaDBService),
-					newServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
-					newService("2", crossplane.MariaDBDatabaseService),
-					newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService).Composition,
+					newTestService("1", crossplane.MariaDBService),
+					newTestServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+					newTestService("2", crossplane.MariaDBDatabaseService),
+					newTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService).Composition,
 				}
 			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
@@ -279,7 +278,7 @@ func TestBrokerAPI_Provision(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -307,7 +306,7 @@ func TestBrokerAPI_Provision(t *testing.T) {
 
 func TestBrokerAPI_Deprovision(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	type args struct {
@@ -338,9 +337,9 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				},
 			},
 			resources: func() []runtime.Object {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 				return []runtime.Object{
-					newService("1", crossplane.RedisService),
+					newTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
 				}
 			},
@@ -360,16 +359,16 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				asyncAllowed: true,
 			},
 			resources: func() []runtime.Object {
-				service := newService("1", crossplane.RedisService)
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				service := newTestService("1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 				return []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1", servicePlan, crossplane.RedisService, "", ""),
+					newTestInstance("1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			customCheckFn: func(t *testing.T, c client.Client) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 				_, err := getInstance(ctx, c, servicePlan, "1")
 				assert.EqualError(t, err, `compositeredisinstances.syn.tools "1" not found`)
 			},
@@ -388,18 +387,18 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				asyncAllowed: true,
 			},
 			resources: func() []runtime.Object {
-				service := newService("1", crossplane.MariaDBService)
-				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
-				mdbs := newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				service := newTestService("1", crossplane.MariaDBService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				mdbs := newTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
 
-				dbInstance := newInstance("2", mdbs, crossplane.MariaDBDatabaseService, "", "1")
+				dbInstance := newTestInstance("2", mdbs, crossplane.MariaDBDatabaseService, "", "1")
 
 				return []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newService("2", crossplane.MariaDBDatabaseService),
+					newTestService("2", crossplane.MariaDBDatabaseService),
 					mdbs.Composition,
-					newInstance("1", servicePlan, crossplane.MariaDBService, "", ""),
+					newTestInstance("1", servicePlan, crossplane.MariaDBService, "", ""),
 					dbInstance,
 				}
 			},
@@ -414,7 +413,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -451,7 +450,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 
 func TestBrokerAPI_LastOperation(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	type args struct {
@@ -479,13 +478,13 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				service := newService("1", crossplane.RedisService)
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				service := newTestService("1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 
 				return nil, []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newInstance("1", servicePlan, crossplane.RedisService, "", ""),
+					newTestInstance("1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			want: &domain.LastOperation{
@@ -504,10 +503,10 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				service := newService("1", crossplane.RedisService)
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				service := newTestService("1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
+				instance := newTestInstance("1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
@@ -533,10 +532,10 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				service := newService("1", crossplane.RedisService)
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				service := newTestService("1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
+				instance := newTestInstance("1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
@@ -562,10 +561,10 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				service := newService("1", crossplane.RedisService)
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				service := newTestService("1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newInstance("1", servicePlan, crossplane.RedisService, "", "")
+				instance := newTestInstance("1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
@@ -589,7 +588,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -622,7 +621,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 
 func TestBrokerAPI_Bind(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	type args struct {
@@ -654,11 +653,11 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
+					newTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+					newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			want:    nil,
@@ -676,13 +675,13 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
-					newService("1", crossplane.RedisService),
+					newTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
 					instance,
-					newSecret(testNamespace, "1-1-1", map[string]string{
+					newTestSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
@@ -713,13 +712,13 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
 				objs := []runtime.Object{
-					newService("1", crossplane.MariaDBService),
+					newTestService("1", crossplane.MariaDBService),
 					servicePlan.Composition,
 					instance,
-					newSecret(testNamespace, "1-1-1", map[string]string{
+					newTestSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
@@ -744,13 +743,13 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
 				objs := []runtime.Object{
-					newService("1", crossplane.MariaDBService),
+					newTestService("1", crossplane.MariaDBService),
 					servicePlan.Composition,
 					instance,
-					newSecret(testNamespace, "1-1-1", map[string]string{
+					newTestSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
@@ -774,18 +773,18 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
-				dbServicePlan := newServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
-				dbInstance := newInstance("1-2-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				dbServicePlan := newTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				dbInstance := newTestInstance("1-2-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1")
 				objs := []runtime.Object{
-					newService("1", crossplane.MariaDBService),
-					newService("2", crossplane.MariaDBDatabaseService),
+					newTestService("1", crossplane.MariaDBService),
+					newTestService("2", crossplane.MariaDBDatabaseService),
 					servicePlan.Composition,
 					instance,
 					dbServicePlan.Composition,
 					dbInstance,
-					newSecret(testNamespace, "1-1-1", map[string]string{
+					newTestSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
@@ -844,7 +843,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -876,7 +875,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 
 func TestBrokerAPI_GetBinding(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	type args struct {
@@ -902,11 +901,11 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 				bindingID:  "1",
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 				objs := []runtime.Object{
-					newService("1", crossplane.RedisService),
+					newTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+					newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				}
 				return nil, objs
 			},
@@ -921,14 +920,14 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 				bindingID:  "1",
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
-					newSecret(testNamespace, "1-1-1", map[string]string{
+					newTestSecret(testNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
@@ -953,7 +952,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -985,7 +984,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 
 func TestBrokerAPI_GetInstance(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	type args struct {
@@ -1011,12 +1010,12 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 				bindingID:  "1",
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1037,12 +1036,12 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 				bindingID:  "1",
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
 
 				return nil, []runtime.Object{
-					newService("1", crossplane.MariaDBDatabaseService),
-					newServicePlan("1", "1-2", crossplane.MariaDBDatabaseService).Composition,
+					newTestService("1", crossplane.MariaDBDatabaseService),
+					newTestServicePlan("1", "1-2", crossplane.MariaDBDatabaseService).Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1064,7 +1063,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -1096,7 +1095,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 
 func TestBrokerAPI_Update(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	type args struct {
@@ -1130,14 +1129,14 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newService("2", crossplane.RedisService),
-					newServicePlan("1", "1-2", crossplane.RedisService).Composition,
-					newServicePlan("2", "2-1", crossplane.RedisService).Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestService("2", crossplane.RedisService),
+					newTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					newTestServicePlan("2", "2-1", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1160,13 +1159,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newService("2", crossplane.RedisService),
-					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "large", "standard").Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestService("2", crossplane.RedisService),
+					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "large", "standard").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1189,13 +1188,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newService("2", crossplane.RedisService),
-					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestService("2", crossplane.RedisService),
+					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1215,13 +1214,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newService("2", crossplane.RedisService),
-					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestService("2", crossplane.RedisService),
+					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1244,13 +1243,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "small-premium", "premium")
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small-premium", "premium")
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newService("2", crossplane.RedisService),
-					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "small", "standard").Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestService("2", crossplane.RedisService),
+					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small", "standard").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1273,13 +1272,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlanWithSize("1", "1-1", crossplane.RedisService, "super-large", "standard")
-				instance := newInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "super-large", "standard")
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
-					newService("2", crossplane.RedisService),
-					newServicePlanWithSize("1", "1-2", crossplane.RedisService, "super-large-premium", "premium").Composition,
+					newTestService("1", crossplane.RedisService),
+					newTestService("2", crossplane.RedisService),
+					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "super-large-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1295,7 +1294,7 @@ func TestBrokerAPI_Update(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -1327,7 +1326,7 @@ func TestBrokerAPI_Update(t *testing.T) {
 
 func TestBrokerAPI_Unbind(t *testing.T) {
 	type fields struct {
-		broker *broker.Broker
+		broker *Broker
 		logger lager.Logger
 	}
 	type args struct {
@@ -1358,11 +1357,11 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
 				return nil, []runtime.Object{
-					newService("1", crossplane.RedisService),
+					newTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+					newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			want:    nil,
@@ -1380,14 +1379,14 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
-				instance := newInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
+				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
+				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
 				objs := []runtime.Object{
-					newService("1", crossplane.MariaDBDatabaseService),
+					newTestService("1", crossplane.MariaDBDatabaseService),
 					servicePlan.Composition,
 					instance,
-					newMariaDBUserInstance("1-1-1", "binding-1"),
-					newSecret(testNamespace, "binding-1-password", map[string]string{
+					newTestMariaDBUserInstance("1-1-1", "binding-1"),
+					newTestSecret(testNamespace, "binding-1-password", map[string]string{
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
 				}
@@ -1408,7 +1407,7 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 	}
 	defer m.Cleanup()
 
-	b := broker.New(cp)
+	b := NewBroker(cp)
 
 	bAPI := BrokerAPI{
 		broker: b,
@@ -1476,7 +1475,7 @@ func getInstance(ctx context.Context, c client.Client, servicePlan *crossplane.P
 	return cmp, nil
 }
 
-func newService(serviceID string, serviceName crossplane.ServiceName) *xv1.CompositeResourceDefinition {
+func newTestService(serviceID string, serviceName crossplane.ServiceName) *xv1.CompositeResourceDefinition {
 	return &xv1.CompositeResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "service",
@@ -1506,7 +1505,7 @@ func newService(serviceID string, serviceName crossplane.ServiceName) *xv1.Compo
 	}
 }
 
-func newServicePlan(serviceID string, planID string, serviceName crossplane.ServiceName) *crossplane.Plan {
+func newTestServicePlan(serviceID string, planID string, serviceName crossplane.ServiceName) *crossplane.Plan {
 	name := "small" + planID
 	return &crossplane.Plan{
 		Labels: &crossplane.Labels{
@@ -1541,7 +1540,7 @@ func newServicePlan(serviceID string, planID string, serviceName crossplane.Serv
 	}
 }
 
-func newServicePlanWithSize(serviceID string, planID string, serviceName crossplane.ServiceName, name string, sla string) *crossplane.Plan {
+func newTestServicePlanWithSize(serviceID string, planID string, serviceName crossplane.ServiceName, name string, sla string) *crossplane.Plan {
 	return &crossplane.Plan{
 		Labels: &crossplane.Labels{
 			ServiceID:   serviceID,
@@ -1592,7 +1591,7 @@ func kindForService(name crossplane.ServiceName) string {
 	return "CompositeInstance"
 }
 
-func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.ServiceName, serviceID, parent string) *composite.Unstructured {
+func newTestInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.ServiceName, serviceID, parent string) *composite.Unstructured {
 	gvk, _ := plan.GVK()
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
 	cmp.SetName(instanceID)
@@ -1626,7 +1625,7 @@ func newInstance(instanceID string, plan *crossplane.Plan, serviceName crossplan
 	return cmp
 }
 
-func newSecret(namespace, name string, stringData map[string]string) *corev1.Secret {
+func newTestSecret(namespace, name string, stringData map[string]string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -1636,7 +1635,7 @@ func newSecret(namespace, name string, stringData map[string]string) *corev1.Sec
 	}
 }
 
-func newMariaDBUserInstance(instanceID, bindingID string) *composite.Unstructured {
+func newTestMariaDBUserInstance(instanceID, bindingID string) *composite.Unstructured {
 	gvk := schema.GroupVersionKind{
 		Group:   "syn.tools",
 		Version: "v1alpha1",
@@ -1653,7 +1652,7 @@ func newMariaDBUserInstance(instanceID, bindingID string) *composite.Unstructure
 	return cmp
 }
 
-func newNamespace(name string) *corev1.Namespace {
+func newTestNamespace(name string) *corev1.Namespace {
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -1704,7 +1703,7 @@ func setupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 
 	logger := lager.NewLogger("test")
 
-	require.NoError(t, createObjects(context.Background(), []runtime.Object{newNamespace(testNamespace)})(m.GetClient()))
+	require.NoError(t, createObjects(context.Background(), []runtime.Object{newTestNamespace(testNamespace)})(m.GetClient()))
 
 	cp, err := crossplane.New([]string{"1", "2"}, testNamespace, m.GetConfig())
 	if err != nil {

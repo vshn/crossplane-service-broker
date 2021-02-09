@@ -12,14 +12,13 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
 
-	"github.com/vshn/crossplane-service-broker/internal/broker"
-	"github.com/vshn/crossplane-service-broker/internal/crossplane"
+	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
 )
 
 // BrokerAPI implements a ServiceBroker.
 type BrokerAPI struct {
-	broker *broker.Broker
+	broker *Broker
 	logger lager.Logger
 }
 
@@ -28,7 +27,7 @@ func New(serviceIDs []string, namespace string, config *rest.Config, logger lage
 	if err != nil {
 		return nil, err
 	}
-	b := broker.New(cp)
+	b := NewBroker(cp)
 	return &BrokerAPI{
 		broker: b,
 		logger: logger,
@@ -42,7 +41,7 @@ func (b BrokerAPI) Services(ctx context.Context) ([]domain.Service, error) {
 	rctx.Logger.Info("get-catalog")
 
 	res, err := b.broker.Services(rctx)
-	return res, toApiResponseError(rctx, err)
+	return res, APIResponseError(rctx, err)
 }
 
 // Provision creates a new service instance
@@ -56,11 +55,11 @@ func (b BrokerAPI) Provision(ctx context.Context, instanceID string, details dom
 	rctx.Logger.Info("provision-instance")
 
 	if !asyncAllowed {
-		return domain.ProvisionedServiceSpec{}, toApiResponseError(rctx, apiresponses.ErrAsyncRequired)
+		return domain.ProvisionedServiceSpec{}, APIResponseError(rctx, apiresponses.ErrAsyncRequired)
 	}
 
 	res, err := b.broker.Provision(rctx, instanceID, details.PlanID, details.RawParameters)
-	return res, toApiResponseError(rctx, err)
+	return res, APIResponseError(rctx, err)
 }
 
 // Deprovision deletes an existing service instance
@@ -74,7 +73,7 @@ func (b BrokerAPI) Deprovision(ctx context.Context, instanceID string, details d
 	rctx.Logger.Info("deprovision-instance")
 
 	res, err := b.broker.Deprovision(rctx, instanceID, details.PlanID)
-	return res, toApiResponseError(rctx, err)
+	return res, APIResponseError(rctx, err)
 }
 
 // GetInstance fetches information about a service instance
@@ -86,7 +85,7 @@ func (b BrokerAPI) GetInstance(ctx context.Context, instanceID string) (domain.G
 	rctx.Logger.Info("get-instance")
 
 	res, err := b.broker.GetInstance(rctx, instanceID)
-	return res, toApiResponseError(rctx, err)
+	return res, APIResponseError(rctx, err)
 }
 
 // Update modifies an existing service instance
@@ -102,10 +101,10 @@ func (b BrokerAPI) Update(ctx context.Context, instanceID string, details domain
 	res, err := b.broker.Update(rctx, instanceID, details.ServiceID, details.PreviousValues.PlanID, details.PlanID)
 	if err != nil {
 		switch err {
-		case broker.ErrPlanChangeNotPermitted, broker.ErrServiceUpdateNotPermitted:
+		case ErrPlanChangeNotPermitted, ErrServiceUpdateNotPermitted:
 			err = apiresponses.NewFailureResponse(err, http.StatusUnprocessableEntity, "update-instance-failed")
 		}
-		return res, toApiResponseError(rctx, err)
+		return res, APIResponseError(rctx, err)
 	}
 
 	return res, nil
@@ -122,7 +121,7 @@ func (b BrokerAPI) LastOperation(ctx context.Context, instanceID string, details
 	rctx.Logger.Info("last-operation", lager.Data{"operation-data": details.OperationData})
 
 	res, err := b.broker.LastOperation(rctx, instanceID, details.PlanID)
-	return res, toApiResponseError(rctx, err)
+	return res, APIResponseError(rctx, err)
 }
 
 // Bind creates a new service binding
@@ -137,7 +136,7 @@ func (b BrokerAPI) Bind(ctx context.Context, instanceID, bindingID string, detai
 	rctx.Logger.Info("bind-instance")
 
 	res, err := b.broker.Bind(rctx, instanceID, bindingID, details.PlanID)
-	return res, toApiResponseError(rctx, err)
+	return res, APIResponseError(rctx, err)
 }
 
 // Unbind deletes an existing service binding
@@ -152,7 +151,7 @@ func (b BrokerAPI) Unbind(ctx context.Context, instanceID, bindingID string, det
 	rctx.Logger.Info("unbind-instance")
 
 	res, err := b.broker.Unbind(rctx, instanceID, bindingID, details.PlanID)
-	return res, toApiResponseError(rctx, err)
+	return res, APIResponseError(rctx, err)
 }
 
 // GetBinding fetches an existing service binding
@@ -166,7 +165,7 @@ func (b BrokerAPI) GetBinding(ctx context.Context, instanceID, bindingID string)
 	rctx.Logger.Info("get-binding")
 
 	res, err := b.broker.GetBinding(rctx, instanceID, bindingID)
-	return res, toApiResponseError(rctx, err)
+	return res, APIResponseError(rctx, err)
 }
 
 // LastBindingOperation fetches last operation state for a service binding
@@ -181,11 +180,11 @@ func (b BrokerAPI) LastBindingOperation(ctx context.Context, instanceID, binding
 	rctx.Logger.Info("last-binding-operation")
 
 	res := domain.LastOperation{}
-	return res, toApiResponseError(rctx, errors.New("not implemented"))
+	return res, APIResponseError(rctx, errors.New("not implemented"))
 }
 
-// toApiResponseError converts an error to a proper API error
-func toApiResponseError(rctx *reqcontext.ReqContext, err error) error {
+// APIResponseError converts an error to a proper API error
+func APIResponseError(rctx *reqcontext.ReqContext, err error) error {
 	if err == nil {
 		return nil
 	}
