@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"testing"
 
@@ -38,13 +37,8 @@ type customCheckFunc func(t *testing.T, c client.Client)
 const testNamespace = "test"
 
 func TestBrokerAPI_Services(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	tests := []struct {
 		name      string
-		fields    fields
 		ctx       context.Context
 		want      []domain.Service
 		wantErr   bool
@@ -99,18 +93,11 @@ func TestBrokerAPI_Services(t *testing.T) {
 	}
 
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,10 +120,6 @@ func TestBrokerAPI_Services(t *testing.T) {
 }
 
 func TestBrokerAPI_Provision(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	type args struct {
 		ctx          context.Context
 		instanceID   string
@@ -147,7 +130,6 @@ func TestBrokerAPI_Provision(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		fields    fields
 		args      args
 		want      *domain.ProvisionedServiceSpec
 		wantErr   error
@@ -272,18 +254,11 @@ func TestBrokerAPI_Provision(t *testing.T) {
 		},
 	}
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -305,10 +280,6 @@ func TestBrokerAPI_Provision(t *testing.T) {
 }
 
 func TestBrokerAPI_Deprovision(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	type args struct {
 		ctx          context.Context
 		instanceID   string
@@ -319,7 +290,6 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		fields        fields
 		args          args
 		want          *domain.DeprovisionServiceSpec
 		wantErr       error
@@ -407,18 +377,11 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 		},
 	}
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -449,10 +412,6 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 }
 
 func TestBrokerAPI_LastOperation(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	type args struct {
 		ctx        context.Context
 		instanceID string
@@ -462,7 +421,6 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		fields    fields
 		args      args
 		want      *domain.LastOperation
 		wantErr   error
@@ -582,18 +540,11 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 		},
 	}
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -620,10 +571,6 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 }
 
 func TestBrokerAPI_Bind(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	type args struct {
 		ctx        context.Context
 		instanceID string
@@ -634,7 +581,6 @@ func TestBrokerAPI_Bind(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		fields             fields
 		args               args
 		want               *domain.Binding
 		wantComparisonFunc assert.ComparisonAssertionFunc
@@ -853,18 +799,11 @@ func TestBrokerAPI_Bind(t *testing.T) {
 	}
 
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -890,10 +829,6 @@ func TestBrokerAPI_Bind(t *testing.T) {
 }
 
 func TestBrokerAPI_GetBinding(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	type args struct {
 		ctx        context.Context
 		instanceID string
@@ -903,7 +838,6 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		fields    fields
 		args      args
 		want      *domain.GetBindingSpec
 		wantErr   error
@@ -978,18 +912,11 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 		},
 	}
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1015,10 +942,6 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 }
 
 func TestBrokerAPI_GetInstance(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	type args struct {
 		ctx        context.Context
 		instanceID string
@@ -1028,7 +951,6 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		fields    fields
 		args      args
 		want      *domain.GetInstanceDetailsSpec
 		wantErr   error
@@ -1089,18 +1011,11 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 		},
 	}
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1126,10 +1041,6 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 }
 
 func TestBrokerAPI_Update(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	type args struct {
 		ctx        context.Context
 		instanceID string
@@ -1140,7 +1051,6 @@ func TestBrokerAPI_Update(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		fields    fields
 		args      args
 		want      *domain.UpdateServiceSpec
 		wantErr   error
@@ -1320,18 +1230,11 @@ func TestBrokerAPI_Update(t *testing.T) {
 		},
 	}
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1357,10 +1260,6 @@ func TestBrokerAPI_Update(t *testing.T) {
 }
 
 func TestBrokerAPI_Unbind(t *testing.T) {
-	type fields struct {
-		broker *Broker
-		logger lager.Logger
-	}
 	type args struct {
 		ctx        context.Context
 		instanceID string
@@ -1371,7 +1270,6 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		fields    fields
 		args      args
 		want      *domain.UnbindSpec
 		wantErr   error
@@ -1433,18 +1331,11 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 		},
 	}
 	m, logger, cp, err := setupManager(t)
-	if err != nil {
-		assert.FailNow(t, fmt.Sprintf("unable to setup integration test manager: %s", err))
-		return
-	}
+	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	b := NewBroker(cp)
-
-	bAPI := BrokerAPI{
-		broker: b,
-		logger: logger,
-	}
+	bAPI, err := New(cp, logger)
+	require.NoError(t, err, "unable to setup brokerapi")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
