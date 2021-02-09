@@ -685,6 +685,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -694,7 +695,22 @@ func TestBrokerAPI_Bind(t *testing.T) {
 			want: &domain.Binding{
 				IsAsync: false,
 				Credentials: crossplane.Credentials{
+					"host":     "localhost",
+					"master":   "redis://1-1-1",
 					"password": "supersecret",
+					"port":     1234,
+					"sentinels": []crossplane.Credentials{
+						{
+							"host": "localhost",
+							"port": 21234,
+						},
+					},
+					"servers": []crossplane.Credentials{
+						{
+							"host": "localhost",
+							"port": 1234,
+						},
+					},
 				},
 			},
 			wantComparisonFunc: assert.Equal,
@@ -931,6 +947,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -939,7 +956,22 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 			},
 			want: &domain.GetBindingSpec{
 				Credentials: crossplane.Credentials{
+					"host":     "localhost",
+					"master":   "redis://1-1-1",
 					"password": "supersecret",
+					"port":     1234,
+					"sentinels": []crossplane.Credentials{
+						{
+							"host": "localhost",
+							"port": 21234,
+						},
+					},
+					"servers": []crossplane.Credentials{
+						{
+							"host": "localhost",
+							"port": 1234,
+						},
+					},
 				},
 			},
 			wantErr: nil,
@@ -1687,6 +1719,9 @@ func setupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 		zl, _ := zap.NewDevelopment()
 		log.SetLogger(zapr.NewLogger(zl))
 	}
+
+	// unfortunately can't be set via an option on the manager as BinaryAssetsDir is not exposed.
+	os.Setenv("KUBEBUILDER_ASSETS", "../../testdata/bin")
 
 	m, err := integration.New(nil,
 		integration.WithCRDPaths("../../testdata/crds"),
