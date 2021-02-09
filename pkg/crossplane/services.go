@@ -69,7 +69,7 @@ type ProvisionValidater interface {
 func ServiceBinderFactory(c *Crossplane, serviceName ServiceName, id string, resourceRefs []corev1.ObjectReference, params map[string]interface{}, logger lager.Logger) (ServiceBinder, error) {
 	switch serviceName {
 	case RedisService:
-		return NewRedisServiceBinder(c, resourceRefs, logger), nil
+		return NewRedisServiceBinder(c, id, resourceRefs, logger), nil
 	case MariaDBService:
 		return NewMariadbServiceBinder(c, id, logger), nil
 	case MariaDBDatabaseService:
