@@ -17,6 +17,7 @@ import (
 	"github.com/vshn/crossplane-service-broker/pkg/api"
 	"github.com/vshn/crossplane-service-broker/pkg/brokerapi"
 	"github.com/vshn/crossplane-service-broker/pkg/config"
+	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 )
 
 const (
@@ -56,7 +57,12 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 
 	router := mux.NewRouter()
 
-	b, err := brokerapi.New(cfg.ServiceIDs, cfg.Namespace, rConfig, logger.WithData(lager.Data{"component": "brokerapi"}))
+	cp, err := crossplane.New(cfg.ServiceIDs, cfg.Namespace, rConfig)
+	if err != nil {
+		return err
+	}
+
+	b, err := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}))
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/pivotal-cf/brokerapi/v7/domain"
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/rest"
 
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
@@ -22,14 +21,9 @@ type BrokerAPI struct {
 	logger lager.Logger
 }
 
-func New(serviceIDs []string, namespace string, config *rest.Config, logger lager.Logger) (*BrokerAPI, error) {
-	cp, err := crossplane.New(serviceIDs, namespace, config)
-	if err != nil {
-		return nil, err
-	}
-	b := NewBroker(cp)
+func New(cp *crossplane.Crossplane, logger lager.Logger) (*BrokerAPI, error) {
 	return &BrokerAPI{
-		broker: b,
+		broker: NewBroker(cp),
 		logger: logger,
 	}, nil
 }
