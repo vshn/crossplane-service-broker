@@ -6,35 +6,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 
-	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
-	"github.com/crossplane/crossplane-runtime/pkg/test/integration"
-	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
-	"github.com/go-logr/zapr"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
 	"github.com/pivotal-cf/brokerapi/v7/middlewares"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
+	"github.com/vshn/crossplane-service-broker/pkg/integration"
 )
-
-type prePostRunFunc func(c client.Client) error
-type customCheckFunc func(t *testing.T, c client.Client)
-
-const testNamespace = "test"
 
 func TestBrokerAPI_Services(t *testing.T) {
 	tests := []struct {
@@ -48,9 +33,9 @@ func TestBrokerAPI_Services(t *testing.T) {
 			name: "returns the catalog successfully",
 			ctx:  context.TODO(),
 			resources: []runtime.Object{
-				newTestService("1", crossplane.RedisService),
-				newTestServicePlan("1", "1-1", crossplane.RedisService).Composition,
-				newTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
+				integration.NewTestService("1", crossplane.RedisService),
+				integration.NewTestServicePlan("1", "1-1", crossplane.RedisService).Composition,
+				integration.NewTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
 			},
 			want: []domain.Service{
 				{
@@ -66,8 +51,8 @@ func TestBrokerAPI_Services(t *testing.T) {
 							ID:          "1-1",
 							Name:        "small1-1",
 							Description: "testservice-small plan description",
-							Free:        boolPtr(false),
-							Bindable:    boolPtr(false),
+							Free:        integration.BoolPtr(false),
+							Bindable:    integration.BoolPtr(false),
 							Metadata: &domain.ServicePlanMetadata{
 								DisplayName: "small",
 							},
@@ -76,8 +61,8 @@ func TestBrokerAPI_Services(t *testing.T) {
 							ID:          "1-2",
 							Name:        "small1-2",
 							Description: "testservice-small plan description",
-							Free:        boolPtr(false),
-							Bindable:    boolPtr(false),
+							Free:        integration.BoolPtr(false),
+							Bindable:    integration.BoolPtr(false),
 							Metadata: &domain.ServicePlanMetadata{
 								DisplayName: "small",
 							},
@@ -92,7 +77,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 		},
 	}
 
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -101,9 +86,9 @@ func TestBrokerAPI_Services(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, createObjects(tt.ctx, tt.resources)(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.ctx, tt.resources)(m.GetClient()))
 			defer func() {
-				require.NoError(t, removeObjects(tt.ctx, tt.resources)(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.ctx, tt.resources)(m.GetClient()))
 			}()
 
 			got, err := bAPI.Services(tt.ctx)
@@ -178,8 +163,8 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			},
 			resources: func() []runtime.Object {
 				return []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestServicePlan("1", "1-1", crossplane.RedisService).Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestServicePlan("1", "1-1", crossplane.RedisService).Composition,
 				}
 			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
@@ -197,13 +182,13 @@ func TestBrokerAPI_Provision(t *testing.T) {
 				asyncAllowed: true,
 			},
 			resources: func() []runtime.Object {
-				service := newTestService("1", crossplane.RedisService)
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				service := integration.NewTestService("1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 
 				return []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+					integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			want:    &domain.ProvisionedServiceSpec{AlreadyExists: true},
@@ -222,8 +207,8 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			},
 			resources: func() []runtime.Object {
 				return []runtime.Object{
-					newTestService("1", crossplane.MariaDBService),
-					newTestServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
 				}
 			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
@@ -243,17 +228,17 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			},
 			resources: func() []runtime.Object {
 				return []runtime.Object{
-					newTestService("1", crossplane.MariaDBService),
-					newTestServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
-					newTestService("2", crossplane.MariaDBDatabaseService),
-					newTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService).Composition,
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
+					integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService).Composition,
 				}
 			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -262,9 +247,9 @@ func TestBrokerAPI_Provision(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, createObjects(tt.args.ctx, tt.resources())(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.args.ctx, tt.resources())(m.GetClient()))
 			defer func() {
-				require.NoError(t, removeObjects(tt.args.ctx, tt.resources())(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.args.ctx, tt.resources())(m.GetClient()))
 			}()
 
 			got, err := bAPI.Provision(tt.args.ctx, tt.args.instanceID, tt.args.details, tt.args.asyncAllowed)
@@ -294,7 +279,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 		want          *domain.DeprovisionServiceSpec
 		wantErr       error
 		resources     func() []runtime.Object
-		customCheckFn customCheckFunc
+		customCheckFn integration.CustomCheckFunc
 	}{
 		{
 			name: "requires instance to exist before deprovisioning",
@@ -307,9 +292,9 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				},
 			},
 			resources: func() []runtime.Object {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 				return []runtime.Object{
-					newTestService("1", crossplane.RedisService),
+					integration.NewTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
 				}
 			},
@@ -329,17 +314,17 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				asyncAllowed: true,
 			},
 			resources: func() []runtime.Object {
-				service := newTestService("1", crossplane.RedisService)
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				service := integration.NewTestService("1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 				return []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newTestInstance("1", servicePlan, crossplane.RedisService, "", ""),
+					integration.NewTestInstance("1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			customCheckFn: func(t *testing.T, c client.Client) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
-				_, err := getInstance(ctx, c, servicePlan, "1")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				_, err := integration.GetInstance(ctx, c, servicePlan, "1")
 				assert.EqualError(t, err, `compositeredisinstances.syn.tools "1" not found`)
 			},
 			want:    &domain.DeprovisionServiceSpec{IsAsync: false},
@@ -357,18 +342,18 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 				asyncAllowed: true,
 			},
 			resources: func() []runtime.Object {
-				service := newTestService("1", crossplane.MariaDBService)
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBService)
-				mdbs := newTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				service := integration.NewTestService("1", crossplane.MariaDBService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				mdbs := integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
 
-				dbInstance := newTestInstance("2", mdbs, crossplane.MariaDBDatabaseService, "", "1")
+				dbInstance := integration.NewTestInstance("2", mdbs, crossplane.MariaDBDatabaseService, "", "1")
 
 				return []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newTestService("2", crossplane.MariaDBDatabaseService),
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
 					mdbs.Composition,
-					newTestInstance("1", servicePlan, crossplane.MariaDBService, "", ""),
+					integration.NewTestInstance("1", servicePlan, crossplane.MariaDBService, "", ""),
 					dbInstance,
 				}
 			},
@@ -376,7 +361,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 			wantErr: errors.New(`instance is still in use by "2" (correlation-id: "corrid")`),
 		},
 	}
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -386,13 +371,13 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			objs := tt.resources()
-			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
 			defer func() {
 				// if wantErr == nil, the instance is gone already and would error when trying to remove it again.
 				if tt.wantErr == nil {
 					objs = objs[:len(objs)-1]
 				}
-				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
 			}()
 
 			got, err := bAPI.Deprovision(tt.args.ctx, tt.args.instanceID, tt.args.details, tt.args.asyncAllowed)
@@ -436,13 +421,13 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				service := newTestService("1", crossplane.RedisService)
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				service := integration.NewTestService("1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 
 				return nil, []runtime.Object{
 					service,
 					servicePlan.Composition,
-					newTestInstance("1", servicePlan, crossplane.RedisService, "", ""),
+					integration.NewTestInstance("1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			want: &domain.LastOperation{
@@ -461,17 +446,17 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				service := newTestService("1", crossplane.RedisService)
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				service := integration.NewTestService("1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newTestInstance("1", servicePlan, crossplane.RedisService, "", "")
+				instance := integration.NewTestInstance("1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
 					instance,
 				}
 				return func(c client.Client) error {
-					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonCreating)
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonCreating)
 				}, objs
 			},
 			want: &domain.LastOperation{
@@ -490,17 +475,17 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				service := newTestService("1", crossplane.RedisService)
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				service := integration.NewTestService("1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newTestInstance("1", servicePlan, crossplane.RedisService, "", "")
+				instance := integration.NewTestInstance("1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
 					instance,
 				}
 				return func(c client.Client) error {
-					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
 				}, objs
 			},
 			want: &domain.LastOperation{
@@ -519,17 +504,17 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				service := newTestService("1", crossplane.RedisService)
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				service := integration.NewTestService("1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 
-				instance := newTestInstance("1", servicePlan, crossplane.RedisService, "", "")
+				instance := integration.NewTestInstance("1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
 					service,
 					servicePlan.Composition,
 					instance,
 				}
 				return func(c client.Client) error {
-					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonUnavailable)
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonUnavailable)
 				}, objs
 			},
 			want: &domain.LastOperation{
@@ -539,7 +524,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -549,13 +534,13 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn, objs := tt.resources()
-			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
 			if fn != nil {
 				require.NoError(t, fn(m.GetClient()))
 			}
 
 			defer func() {
-				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
 			}()
 
 			got, err := bAPI.LastOperation(tt.args.ctx, tt.args.instanceID, tt.args.details)
@@ -599,11 +584,11 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
+					integration.NewTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+					integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			want:    nil,
@@ -621,13 +606,13 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
-					newTestService("1", crossplane.RedisService),
+					integration.NewTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
 					instance,
-					newTestSecret(testNamespace, "1-1-1", map[string]string{
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
@@ -635,7 +620,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 					}),
 				}
 				return func(c client.Client) error {
-					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
 				}, objs
 			},
 			want: &domain.Binding{
@@ -674,20 +659,20 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
 				objs := []runtime.Object{
-					newTestService("1", crossplane.MariaDBService),
+					integration.NewTestService("1", crossplane.MariaDBService),
 					servicePlan.Composition,
 					instance,
-					newTestSecret(testNamespace, "1-1-1", map[string]string{
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
 				}
 				return func(c client.Client) error {
-					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
 				}, objs
 			},
 			want:    nil,
@@ -705,19 +690,19 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
 				objs := []runtime.Object{
-					newTestService("1", crossplane.MariaDBService),
+					integration.NewTestService("1", crossplane.MariaDBService),
 					servicePlan.Composition,
 					instance,
-					newTestSecret(testNamespace, "1-1-1", map[string]string{
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
 				}
 				return func(c client.Client) error {
-					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
 				}, objs
 			},
 			want:    nil,
@@ -735,28 +720,28 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
-				dbServicePlan := newTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
-				dbInstance := newTestInstance("1-2-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				dbServicePlan := integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				dbInstance := integration.NewTestInstance("1-2-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1")
 				objs := []runtime.Object{
-					newTestService("1", crossplane.MariaDBService),
-					newTestService("2", crossplane.MariaDBDatabaseService),
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
 					servicePlan.Composition,
 					instance,
 					dbServicePlan.Composition,
 					dbInstance,
-					newTestSecret(testNamespace, "1-1-1", map[string]string{
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
 				}
 				return func(c client.Client) error {
-					if err := updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable); err != nil {
+					if err := integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable); err != nil {
 						return err
 					}
-					return updateInstanceConditions(ctx, c, dbServicePlan, dbInstance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+					return integration.UpdateInstanceConditions(ctx, c, dbServicePlan, dbInstance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
 				}, objs
 			},
 			want: &domain.Binding{
@@ -798,7 +783,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 		},
 	}
 
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -808,9 +793,9 @@ func TestBrokerAPI_Bind(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn, objs := tt.resources()
-			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
 			defer func() {
-				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
 			}()
 			if fn != nil {
 				require.NoError(t, fn(m.GetClient()))
@@ -851,11 +836,11 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 				bindingID:  "1",
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 				objs := []runtime.Object{
-					newTestService("1", crossplane.RedisService),
+					integration.NewTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+					integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				}
 				return nil, objs
 			},
@@ -870,14 +855,14 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 				bindingID:  "1",
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 				objs := []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
-					newTestSecret(testNamespace, "1-1-1", map[string]string{
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
@@ -885,7 +870,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 					}),
 				}
 				return func(c client.Client) error {
-					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
 				}, objs
 			},
 			want: &domain.GetBindingSpec{
@@ -911,7 +896,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -921,9 +906,9 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn, objs := tt.resources()
-			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
 			defer func() {
-				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
 			}()
 			if fn != nil {
 				require.NoError(t, fn(m.GetClient()))
@@ -964,12 +949,12 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 				bindingID:  "1",
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
 
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -990,12 +975,12 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 				bindingID:  "1",
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
 
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.MariaDBDatabaseService),
-					newTestServicePlan("1", "1-2", crossplane.MariaDBDatabaseService).Composition,
+					integration.NewTestService("1", crossplane.MariaDBDatabaseService),
+					integration.NewTestServicePlan("1", "1-2", crossplane.MariaDBDatabaseService).Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1010,7 +995,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -1020,9 +1005,9 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn, objs := tt.resources()
-			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
 			defer func() {
-				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
 			}()
 			if fn != nil {
 				require.NoError(t, fn(m.GetClient()))
@@ -1071,14 +1056,14 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestService("2", crossplane.RedisService),
-					newTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
-					newTestServicePlan("2", "2-1", crossplane.RedisService).Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					integration.NewTestServicePlan("2", "2-1", crossplane.RedisService).Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1101,13 +1086,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestService("2", crossplane.RedisService),
-					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "large", "standard").Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "large", "standard").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1130,13 +1115,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestService("2", crossplane.RedisService),
-					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1156,13 +1141,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestService("2", crossplane.RedisService),
-					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1185,13 +1170,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small-premium", "premium")
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small-premium", "premium")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestService("2", crossplane.RedisService),
-					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small", "standard").Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "small", "standard").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1214,13 +1199,13 @@ func TestBrokerAPI_Update(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "super-large", "standard")
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "super-large", "standard")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
-					newTestService("2", crossplane.RedisService),
-					newTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "super-large-premium", "premium").Composition,
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "super-large-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1229,7 +1214,7 @@ func TestBrokerAPI_Update(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -1239,9 +1224,9 @@ func TestBrokerAPI_Update(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn, objs := tt.resources()
-			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
 			defer func() {
-				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
 			}()
 			if fn != nil {
 				require.NoError(t, fn(m.GetClient()))
@@ -1287,11 +1272,11 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 				return nil, []runtime.Object{
-					newTestService("1", crossplane.RedisService),
+					integration.NewTestService("1", crossplane.RedisService),
 					servicePlan.Composition,
-					newTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
+					integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", ""),
 				}
 			},
 			want:    nil,
@@ -1309,19 +1294,19 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 				},
 			},
 			resources: func() (func(c client.Client) error, []runtime.Object) {
-				servicePlan := newTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
-				instance := newTestInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
 				objs := []runtime.Object{
-					newTestService("1", crossplane.MariaDBDatabaseService),
+					integration.NewTestService("1", crossplane.MariaDBDatabaseService),
 					servicePlan.Composition,
 					instance,
-					newTestMariaDBUserInstance("1-1-1", "binding-1"),
-					newTestSecret(testNamespace, "binding-1-password", map[string]string{
+					integration.NewTestMariaDBUserInstance("1-1-1", "binding-1"),
+					integration.NewTestSecret(integration.TestNamespace, "binding-1-password", map[string]string{
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
 				}
 				return func(c client.Client) error {
-					return updateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
 				}, objs
 			},
 			want: &domain.UnbindSpec{
@@ -1330,7 +1315,7 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := setupManager(t)
+	m, logger, cp, err := integration.SetupManager(t)
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
@@ -1340,13 +1325,13 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn, objs := tt.resources()
-			require.NoError(t, createObjects(tt.args.ctx, objs)(m.GetClient()))
+			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
 			defer func() {
 				// if wantErr == nil, secret must be gone and would error here if we still would try to remove it again
 				if tt.wantErr == nil {
 					objs = objs[:len(objs)-1]
 				}
-				require.NoError(t, removeObjects(tt.args.ctx, objs)(m.GetClient()))
+				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
 			}()
 			if fn != nil {
 				require.NoError(t, fn(m.GetClient()))
@@ -1362,282 +1347,4 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 			assert.Equal(t, *tt.want, got)
 		})
 	}
-}
-
-func updateInstanceConditions(ctx context.Context, c client.Client, servicePlan *crossplane.Plan, instance *composite.Unstructured, t xrv1.ConditionType, status corev1.ConditionStatus, reason xrv1.ConditionReason) error {
-	cmp, err := getInstance(ctx, c, servicePlan, instance.GetName())
-	if err != nil {
-		return err
-	}
-
-	// safe to ignore error as `getInstance()` does the same already
-	gvk, _ := servicePlan.GVK()
-	// need to re-add as it gets reset after GETting.
-	cmp.SetGroupVersionKind(gvk)
-	cmp.SetConditions(xrv1.Condition{
-		Type:               t,
-		Status:             status,
-		Reason:             reason,
-		LastTransitionTime: metav1.Now(),
-	})
-	return c.Update(ctx, cmp)
-}
-
-func getInstance(ctx context.Context, c client.Client, servicePlan *crossplane.Plan, instanceID string) (*composite.Unstructured, error) {
-	gvk, err := servicePlan.GVK()
-	if err != nil {
-		return nil, err
-	}
-	cmp := composite.New(composite.WithGroupVersionKind(gvk))
-	cmp.SetName(instanceID)
-
-	err = c.Get(ctx, types.NamespacedName{Name: instanceID}, cmp)
-	if err != nil {
-		return nil, err
-	}
-	return cmp, nil
-}
-
-func newTestService(serviceID string, serviceName crossplane.ServiceName) *xv1.CompositeResourceDefinition {
-	return &xv1.CompositeResourceDefinition{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "service",
-			APIVersion: "syn.tools/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testservice" + serviceID,
-			Labels: map[string]string{
-				crossplane.ServiceIDLabel:   serviceID,
-				crossplane.ServiceNameLabel: string(serviceName),
-				crossplane.BindableLabel:    "true",
-				crossplane.UpdatableLabel:   "true",
-			},
-			Annotations: map[string]string{
-				crossplane.DescriptionAnnotation: "testservice description",
-				crossplane.MetadataAnnotation:    `{"displayName": "testservice"}`,
-				crossplane.TagsAnnotation:        `["foo","bar","baz"]`,
-			},
-		},
-		Spec: xv1.CompositeResourceDefinitionSpec{
-			Versions: []xv1.CompositeResourceDefinitionVersion{
-				{
-					Name: "v1alpha1",
-				},
-			},
-		},
-	}
-}
-
-func newTestServicePlan(serviceID string, planID string, serviceName crossplane.ServiceName) *crossplane.Plan {
-	name := "small" + planID
-	return &crossplane.Plan{
-		Labels: &crossplane.Labels{
-			PlanName: name,
-		},
-		Composition: &xv1.Composition{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "servicePlan",
-				APIVersion: "syn.tools/v1alpha1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: planID,
-				Labels: map[string]string{
-					crossplane.ServiceIDLabel:   serviceID,
-					crossplane.ServiceNameLabel: string(serviceName),
-					crossplane.PlanNameLabel:    name,
-					crossplane.BindableLabel:    "false",
-				},
-				Annotations: map[string]string{
-					crossplane.DescriptionAnnotation: "testservice-small plan description",
-					crossplane.MetadataAnnotation:    `{"displayName": "small"}`,
-				},
-			},
-			Spec: xv1.CompositionSpec{
-				Resources: []xv1.ComposedTemplate{},
-				CompositeTypeRef: xv1.TypeReference{
-					APIVersion: "syn.tools/v1alpha1",
-					Kind:       kindForService(serviceName),
-				},
-			},
-		},
-	}
-}
-
-func newTestServicePlanWithSize(serviceID string, planID string, serviceName crossplane.ServiceName, name string, sla string) *crossplane.Plan {
-	return &crossplane.Plan{
-		Labels: &crossplane.Labels{
-			ServiceID:   serviceID,
-			ServiceName: serviceName,
-			PlanName:    name,
-			SLA:         sla,
-			Bindable:    false,
-		},
-		Composition: &xv1.Composition{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "servicePlan",
-				APIVersion: "syn.tools/v1alpha1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: planID,
-				Labels: map[string]string{
-					crossplane.ServiceIDLabel:   serviceID,
-					crossplane.ServiceNameLabel: string(serviceName),
-					crossplane.PlanNameLabel:    name,
-					crossplane.SLALabel:         sla,
-					crossplane.BindableLabel:    "false",
-				},
-				Annotations: map[string]string{
-					crossplane.DescriptionAnnotation: "testservice-small plan description",
-					crossplane.MetadataAnnotation:    `{"displayName": "small"}`,
-				},
-			},
-			Spec: xv1.CompositionSpec{
-				Resources: []xv1.ComposedTemplate{},
-				CompositeTypeRef: xv1.TypeReference{
-					APIVersion: "syn.tools/v1alpha1",
-					Kind:       kindForService(serviceName),
-				},
-			},
-		},
-	}
-}
-
-func kindForService(name crossplane.ServiceName) string {
-	switch name {
-	case crossplane.RedisService:
-		return "CompositeRedisInstance"
-	case crossplane.MariaDBService:
-		return "CompositeMariaDBInstance"
-	case crossplane.MariaDBDatabaseService:
-		return "CompositeMariaDBDatabaseInstance"
-	}
-	return "CompositeInstance"
-}
-
-func newTestInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.ServiceName, serviceID, parent string) *composite.Unstructured {
-	gvk, _ := plan.GVK()
-	cmp := composite.New(composite.WithGroupVersionKind(gvk))
-	cmp.SetName(instanceID)
-	cmp.SetCompositionReference(&corev1.ObjectReference{
-		Name: plan.Labels.PlanName,
-	})
-	labels := map[string]string{
-		crossplane.PlanNameLabel:    plan.Labels.PlanName,
-		crossplane.ServiceIDLabel:   serviceID,
-		crossplane.SLALabel:         plan.Labels.SLA,
-		crossplane.ServiceNameLabel: string(serviceName),
-	}
-	if parent != "" {
-		labels[crossplane.ParentIDLabel] = parent
-		cmp.Object["spec"] = map[string]interface{}{
-			"parameters": map[string]interface{}{
-				"parent_reference": parent,
-			},
-		}
-	}
-	cmp.SetLabels(labels)
-	cmp.SetResourceReferences([]corev1.ObjectReference{
-		{
-			Kind:       "Secret",
-			Namespace:  testNamespace,
-			APIVersion: "v1",
-			Name:       instanceID,
-		},
-	})
-
-	return cmp
-}
-
-func newTestSecret(namespace, name string, stringData map[string]string) *corev1.Secret {
-	return &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		StringData: stringData,
-	}
-}
-
-func newTestMariaDBUserInstance(instanceID, bindingID string) *composite.Unstructured {
-	gvk := schema.GroupVersionKind{
-		Group:   "syn.tools",
-		Version: "v1alpha1",
-		Kind:    "CompositeMariaDBUserInstance",
-	}
-	cmp := composite.New(composite.WithGroupVersionKind(gvk))
-	cmp.SetName(bindingID)
-	cmp.Object["spec"] = map[string]interface{}{
-		"parameters": map[string]interface{}{
-			"parent_reference": instanceID,
-		},
-	}
-
-	return cmp
-}
-
-func newTestNamespace(name string) *corev1.Namespace {
-	return &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-}
-
-func createObjects(ctx context.Context, objs []runtime.Object) prePostRunFunc {
-	return func(c client.Client) error {
-		for _, obj := range objs {
-			if err := c.Create(ctx, obj.DeepCopyObject()); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
-func removeObjects(ctx context.Context, objs []runtime.Object) prePostRunFunc {
-	return func(c client.Client) error {
-		for _, obj := range objs {
-			if err := c.Delete(ctx, obj); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
-func setupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane.Crossplane, error) {
-	if db := os.Getenv("DEBUG"); db != "" {
-		zl, _ := zap.NewDevelopment()
-		log.SetLogger(zapr.NewLogger(zl))
-	}
-
-	// unfortunately can't be set via an option on the manager as BinaryAssetsDir is not exposed.
-	os.Setenv("KUBEBUILDER_ASSETS", "../../testdata/bin")
-
-	m, err := integration.New(nil,
-		integration.WithCRDPaths("../../testdata/crds"),
-	)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	m.Run()
-
-	scheme := m.GetScheme()
-	assert.NoError(t, xv1.AddToScheme(scheme))
-	assert.NoError(t, crossplane.Register(scheme))
-
-	logger := lager.NewLogger("test")
-
-	require.NoError(t, createObjects(context.Background(), []runtime.Object{newTestNamespace(testNamespace)})(m.GetClient()))
-
-	cp, err := crossplane.New([]string{"1", "2"}, testNamespace, m.GetConfig())
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return m, logger, cp, nil
-}
-
-func boolPtr(b bool) *bool {
-	return &b
 }
