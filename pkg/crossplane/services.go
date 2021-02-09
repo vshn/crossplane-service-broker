@@ -26,8 +26,10 @@ type Endpoint struct {
 	Protocol string
 }
 
+// ServiceName contains all defined service names to handle specific implementations.
 type ServiceName string
 
+// IsValid returns true if the ServiceName is one of the defined ones.
 func (s ServiceName) IsValid() bool {
 	switch s {
 	case RedisService, MariaDBService, MariaDBDatabaseService:
@@ -36,6 +38,7 @@ func (s ServiceName) IsValid() bool {
 	return false
 }
 
+// Defined service names
 var (
 	RedisService           ServiceName = "redis-k8s"
 	MariaDBService         ServiceName = "mariadb-k8s"

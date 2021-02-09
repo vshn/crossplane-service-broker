@@ -6,16 +6,16 @@ import (
 	"testing"
 
 	"code.cloudfoundry.org/lager"
-	v1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
 	"github.com/crossplane/crossplane-runtime/pkg/test/integration"
-	v14 "github.com/crossplane/crossplane/apis/apiextensions/v1"
+	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
 	"github.com/go-logr/zapr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	v12 "k8s.io/api/core/v1"
-	v13 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,12 +25,14 @@ import (
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 )
 
+// PrePostRunFunc is used for setup/teardown funcs.
 type PrePostRunFunc func(c client.Client) error
-type CustomCheckFunc func(t *testing.T, c client.Client)
 
+// TestNamespace is used for all resources created during tests.
 const TestNamespace = "test"
 
-func UpdateInstanceConditions(ctx context.Context, c client.Client, servicePlan *crossplane.Plan, instance *composite.Unstructured, t v1.ConditionType, status v12.ConditionStatus, reason v1.ConditionReason) error {
+// UpdateInstanceConditions updates an instance's conditions within the status.
+func UpdateInstanceConditions(ctx context.Context, c client.Client, servicePlan *crossplane.Plan, instance *composite.Unstructured, t xrv1.ConditionType, status corev1.ConditionStatus, reason xrv1.ConditionReason) error {
 	cmp, err := GetInstance(ctx, c, servicePlan, instance.GetName())
 	if err != nil {
 		return err
@@ -40,15 +42,16 @@ func UpdateInstanceConditions(ctx context.Context, c client.Client, servicePlan 
 	gvk, _ := servicePlan.GVK()
 	// need to re-add as it gets reset after GETting.
 	cmp.SetGroupVersionKind(gvk)
-	cmp.SetConditions(v1.Condition{
+	cmp.SetConditions(xrv1.Condition{
 		Type:               t,
 		Status:             status,
 		Reason:             reason,
-		LastTransitionTime: v13.Now(),
+		LastTransitionTime: metav1.Now(),
 	})
 	return c.Update(ctx, cmp)
 }
 
+// GetInstance retrieves the specified instance.
 func GetInstance(ctx context.Context, c client.Client, servicePlan *crossplane.Plan, instanceID string) (*composite.Unstructured, error) {
 	gvk, err := servicePlan.GVK()
 	if err != nil {
@@ -64,13 +67,14 @@ func GetInstance(ctx context.Context, c client.Client, servicePlan *crossplane.P
 	return cmp, nil
 }
 
-func NewTestService(serviceID string, serviceName crossplane.ServiceName) *v14.CompositeResourceDefinition {
-	return &v14.CompositeResourceDefinition{
-		TypeMeta: v13.TypeMeta{
+// NewTestService creates a new service.
+func NewTestService(serviceID string, serviceName crossplane.ServiceName) *xv1.CompositeResourceDefinition {
+	return &xv1.CompositeResourceDefinition{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "service",
 			APIVersion: "syn.tools/v1alpha1",
 		},
-		ObjectMeta: v13.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "testservice" + serviceID,
 			Labels: map[string]string{
 				crossplane.ServiceIDLabel:   serviceID,
@@ -84,8 +88,8 @@ func NewTestService(serviceID string, serviceName crossplane.ServiceName) *v14.C
 				crossplane.TagsAnnotation:        `["foo","bar","baz"]`,
 			},
 		},
-		Spec: v14.CompositeResourceDefinitionSpec{
-			Versions: []v14.CompositeResourceDefinitionVersion{
+		Spec: xv1.CompositeResourceDefinitionSpec{
+			Versions: []xv1.CompositeResourceDefinitionVersion{
 				{
 					Name: "v1alpha1",
 				},
@@ -94,18 +98,19 @@ func NewTestService(serviceID string, serviceName crossplane.ServiceName) *v14.C
 	}
 }
 
+// NewTestServicePlan creates a new service plan.
 func NewTestServicePlan(serviceID, planID string, serviceName crossplane.ServiceName) *crossplane.Plan {
 	name := "small" + planID
 	return &crossplane.Plan{
 		Labels: &crossplane.Labels{
 			PlanName: name,
 		},
-		Composition: &v14.Composition{
-			TypeMeta: v13.TypeMeta{
+		Composition: &xv1.Composition{
+			TypeMeta: metav1.TypeMeta{
 				Kind:       "servicePlan",
 				APIVersion: "syn.tools/v1alpha1",
 			},
-			ObjectMeta: v13.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name: planID,
 				Labels: map[string]string{
 					crossplane.ServiceIDLabel:   serviceID,
@@ -118,48 +123,9 @@ func NewTestServicePlan(serviceID, planID string, serviceName crossplane.Service
 					crossplane.MetadataAnnotation:    `{"displayName": "small"}`,
 				},
 			},
-			Spec: v14.CompositionSpec{
-				Resources: []v14.ComposedTemplate{},
-				CompositeTypeRef: v14.TypeReference{
-					APIVersion: "syn.tools/v1alpha1",
-					Kind:       kindForService(serviceName),
-				},
-			},
-		},
-	}
-}
-
-func NewTestServicePlanWithSize(serviceID, planID string, serviceName crossplane.ServiceName, name, sla string) *crossplane.Plan {
-	return &crossplane.Plan{
-		Labels: &crossplane.Labels{
-			ServiceID:   serviceID,
-			ServiceName: serviceName,
-			PlanName:    name,
-			SLA:         sla,
-			Bindable:    false,
-		},
-		Composition: &v14.Composition{
-			TypeMeta: v13.TypeMeta{
-				Kind:       "servicePlan",
-				APIVersion: "syn.tools/v1alpha1",
-			},
-			ObjectMeta: v13.ObjectMeta{
-				Name: planID,
-				Labels: map[string]string{
-					crossplane.ServiceIDLabel:   serviceID,
-					crossplane.ServiceNameLabel: string(serviceName),
-					crossplane.PlanNameLabel:    name,
-					crossplane.SLALabel:         sla,
-					crossplane.BindableLabel:    "false",
-				},
-				Annotations: map[string]string{
-					crossplane.DescriptionAnnotation: "testservice-small plan description",
-					crossplane.MetadataAnnotation:    `{"displayName": "small"}`,
-				},
-			},
-			Spec: v14.CompositionSpec{
-				Resources: []v14.ComposedTemplate{},
-				CompositeTypeRef: v14.TypeReference{
+			Spec: xv1.CompositionSpec{
+				Resources: []xv1.ComposedTemplate{},
+				CompositeTypeRef: xv1.TypeReference{
 					APIVersion: "syn.tools/v1alpha1",
 					Kind:       kindForService(serviceName),
 				},
@@ -180,11 +146,12 @@ func kindForService(name crossplane.ServiceName) string {
 	return "CompositeInstance"
 }
 
+// NewTestInstance sets up an instance for testing.
 func NewTestInstance(instanceID string, plan *crossplane.Plan, serviceName crossplane.ServiceName, serviceID, parent string) *composite.Unstructured {
 	gvk, _ := plan.GVK()
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
 	cmp.SetName(instanceID)
-	cmp.SetCompositionReference(&v12.ObjectReference{
+	cmp.SetCompositionReference(&corev1.ObjectReference{
 		Name: plan.Labels.PlanName,
 	})
 	labels := map[string]string{
@@ -202,7 +169,7 @@ func NewTestInstance(instanceID string, plan *crossplane.Plan, serviceName cross
 		}
 	}
 	cmp.SetLabels(labels)
-	cmp.SetResourceReferences([]v12.ObjectReference{
+	cmp.SetResourceReferences([]corev1.ObjectReference{
 		{
 			Kind:       "Secret",
 			Namespace:  TestNamespace,
@@ -214,9 +181,10 @@ func NewTestInstance(instanceID string, plan *crossplane.Plan, serviceName cross
 	return cmp
 }
 
-func NewTestSecret(namespace, name string, stringData map[string]string) *v12.Secret {
-	return &v12.Secret{
-		ObjectMeta: v13.ObjectMeta{
+// NewTestSecret creates a new secret.
+func NewTestSecret(namespace, name string, stringData map[string]string) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
@@ -224,6 +192,7 @@ func NewTestSecret(namespace, name string, stringData map[string]string) *v12.Se
 	}
 }
 
+// NewTestMariaDBUserInstance sets up a specific mariadb user instance.
 func NewTestMariaDBUserInstance(instanceID, bindingID string) *composite.Unstructured {
 	gvk := schema.GroupVersionKind{
 		Group:   "syn.tools",
@@ -241,14 +210,15 @@ func NewTestMariaDBUserInstance(instanceID, bindingID string) *composite.Unstruc
 	return cmp
 }
 
-func NewTestNamespace(name string) *v12.Namespace {
-	return &v12.Namespace{
-		ObjectMeta: v13.ObjectMeta{
+func newTestNamespace(name string) *corev1.Namespace {
+	return &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
 }
 
+// CreateObjects sets up the specified objects.
 func CreateObjects(ctx context.Context, objs []runtime.Object) PrePostRunFunc {
 	return func(c client.Client) error {
 		for _, obj := range objs {
@@ -260,6 +230,7 @@ func CreateObjects(ctx context.Context, objs []runtime.Object) PrePostRunFunc {
 	}
 }
 
+// RemoveObjects removes the specified objects.
 func RemoveObjects(ctx context.Context, objs []runtime.Object) PrePostRunFunc {
 	return func(c client.Client) error {
 		for _, obj := range objs {
@@ -271,6 +242,7 @@ func RemoveObjects(ctx context.Context, objs []runtime.Object) PrePostRunFunc {
 	}
 }
 
+// SetupManager creates the envtest manager setup with required objects.
 func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane.Crossplane, error) {
 	if db := os.Getenv("DEBUG"); db != "" {
 		zl, _ := zap.NewDevelopment()
@@ -290,12 +262,12 @@ func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 	m.Run()
 
 	scheme := m.GetScheme()
-	assert.NoError(t, v14.AddToScheme(scheme))
+	assert.NoError(t, xv1.AddToScheme(scheme))
 	assert.NoError(t, crossplane.Register(scheme))
 
 	logger := lager.NewLogger("test")
 
-	require.NoError(t, CreateObjects(context.Background(), []runtime.Object{NewTestNamespace(TestNamespace)})(m.GetClient()))
+	require.NoError(t, CreateObjects(context.Background(), []runtime.Object{newTestNamespace(TestNamespace)})(m.GetClient()))
 
 	cp, err := crossplane.New([]string{"1", "2"}, TestNamespace, m.GetConfig())
 	if err != nil {
@@ -304,6 +276,7 @@ func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 	return m, logger, cp, nil
 }
 
+// BoolPtr returns a pointer to bool.
 func BoolPtr(b bool) *bool {
 	return &b
 }

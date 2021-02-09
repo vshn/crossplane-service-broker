@@ -62,10 +62,7 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 		return err
 	}
 
-	b, err := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}))
-	if err != nil {
-		return err
-	}
+	b := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}))
 
 	a := api.New(b, cfg.Username, cfg.Password, logger.WithData(lager.Data{"component": "api"}))
 	router.NewRoute().Handler(a)

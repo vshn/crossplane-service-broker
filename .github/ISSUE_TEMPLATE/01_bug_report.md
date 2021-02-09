@@ -1,20 +1,44 @@
 ---
-name: 🐜 Bug report
-about: Create a report to help us improve 🔧
-labels: bug
+name: 🐛 Bug report
+about: Create a report to help us improve 🎉
+title: ''
+labels: 'bug'
+
 ---
 
-<!-- Place a general description or your issue here. -->
+## Describe the bug
 
-## Steps to Reproduce the Problem
-<!-- Tell us how to reproduce your issue -->
+A clear and concise description of what the bug is.
 
-  1.
-  1.
-  1.
+## Additional context
 
-## Actual Behavior
-<!-- What did happen as a result of the above? -->
+Add any other context about the problem here.
 
-## Expected Behavior
-<!-- What is your expectation of the result? -->
+## Logs
+
+If applicable, add logs to help explain your problem.
+```console
+
+```
+
+## Expected behavior
+
+A clear and concise description of what you expected to happen.
+
+## To Reproduce
+
+Steps to reproduce the behavior:
+1. Specs
+```yaml
+
+```
+2. Commands
+```bash
+
+```
+
+## Environment (please complete the following information):
+
+- Image Version: e.g. v1.0
+- K8s Version: e.g. v1.18
+- K8s Distribution: e.g. OpenShift, Rancher, etc.

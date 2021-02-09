@@ -1,0 +1,36 @@
+# This is an example goreleaser.yaml file with some sane defaults.
+# Make sure to check the documentation at http://goreleaser.com
+
+builds:
+  - env:
+      - CGO_ENABLED=0 # this is needed otherwise the Docker image build is faulty
+    goarch:
+      - amd64
+    goos:
+      - linux
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ .Tag }}-snapshot"
+
+dockers:
+  - image_templates:
+      - "docker.io/vshn/crossplane-service-broker:v{{ .Version }}"
+      - "quay.io/vshn/crossplane-service-broker:v{{ .Version }}"
+
+      # For prereleases, updating `latest` and the floating tags of the major
+      # version does not make sense. Only the image for the exact version should
+      # be pushed.
+      - "{{ if not .Prerelease }}docker.io/vshn/crossplane-service-broker:v{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}quay.io/vshn/crossplane-service-broker:v{{ .Major }}{{ end }}"
+
+      - "{{ if not .Prerelease }}docker.io/vshn/crossplane-service-broker:latest{{ end }}"
+      - "{{ if not .Prerelease }}quay.io/vshn/crossplane-service-broker:latest{{ end }}"
+
+release:
+  prerelease: auto
+  github:
+    owner: vshn
+    name: crossplane-service-broker

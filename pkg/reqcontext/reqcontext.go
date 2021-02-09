@@ -16,6 +16,7 @@ type ReqContext struct {
 	Logger        lager.Logger
 }
 
+// NewReqContext reads data from context and sets up the request context.
 func NewReqContext(ctx context.Context, logger lager.Logger, logData lager.Data) *ReqContext {
 	if logData == nil {
 		logData = lager.Data{}

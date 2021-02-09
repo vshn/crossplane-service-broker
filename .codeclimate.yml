@@ -1,0 +1,19 @@
+version: "2"
+plugins:
+  shellcheck:
+    enabled: true
+  govet:
+    enabled: true
+  gofmt:
+    enabled: true
+  golint:
+    enabled: true
+  fixme:
+    enabled: true
+exclude_patterns:
+  - "testdata/"
+  - "**/vendor/"
+  - "**/*_test.go"
+  - "e2e/lib/"
+  - "docs/"
+  - "deploy/"

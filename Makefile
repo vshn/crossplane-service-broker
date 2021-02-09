@@ -1,101 +1,55 @@
+# Set Shell to bash, otherwise some targets fail with dash/zsh etc.
+SHELL := /bin/bash
+
+# Disable built-in rules
+MAKEFLAGS += --no-builtin-rules
 MAKEFLAGS += --warn-undefined-variables
-SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
-.DEFAULT_GOAL := all
-.DELETE_ON_ERROR:
 .SUFFIXES:
+.SECONDARY:
 
-TESTDATA_DIR ?= ./testdata
-TESTBIN_DIR ?= $(TESTDATA_DIR)/bin
-KIND_BIN ?= $(TESTBIN_DIR)/kind
-KIND_VERSION ?= 0.9.0
-KIND_KUBECONFIG ?= $(TESTBIN_DIR)/kind-kubeconfig
-KIND_NODE_VERSION ?= v1.18.8
-KIND_CLUSTER ?= crossplane-service-broker
-KIND_REGISTRY_NAME ?= kind-registry
-KIND_REGISTRY_PORT ?= 5000
-
-# Needs absolute path to setup env variables correctly.
-ENVTEST_ASSETS_DIR = $(shell pwd)/testdata
-
-DOCKER_CMD   ?= docker
-DOCKER_ARGS  ?= --rm --user "$$(id -u)" --volume "$${PWD}:/src" --workdir /src
-
-# Project parameters
-BINARY_NAME ?= crossplane-service-broker
-
-VERSION ?= $(shell git describe --tags --always --dirty --match=v* || (echo "command failed $$?"; exit 1))
-
-IMAGE_NAME ?= docker.io/vshn/$(BINARY_NAME):$(VERSION)
-E2E_IMAGE ?= localhost:$(KIND_REGISTRY_PORT)/vshn/$(BINARY_NAME):e2e
-
-ANTORA_PREVIEW_CMD ?= $(DOCKER_CMD) run --rm --publish 35729:35729 --publish 2020:2020 --volume "${PWD}":/preview/antora vshn/antora-preview:2.3.4 --style=syn --antora=docs
-
-# Linting parameters
-YAML_FILES      ?= $(shell git ls-files *.y*ml)
-YAMLLINT_ARGS   ?= --no-warnings
-YAMLLINT_CONFIG ?= .yamllint.yml
-YAMLLINT_IMAGE  ?= docker.io/cytopia/yamllint:latest
-YAMLLINT_DOCKER ?= $(DOCKER_CMD) run $(DOCKER_ARGS) $(YAMLLINT_IMAGE)
-
-TESTDATA_CRD_DIR = $(TESTDATA_DIR)/crds
-CROSSPLANE_VERSION = v1.0.0
-CROSSPLANE_CRDS = $(addprefix $(TESTDATA_CRD_DIR)/, apiextensions.crossplane.io_compositeresourcedefinitions.yaml \
-					apiextensions.crossplane.io_compositions.yaml \
-					pkg.crossplane.io_configurationrevisions.yaml \
-					pkg.crossplane.io_configurations.yaml \
-					pkg.crossplane.io_controllerconfigs.yaml \
-					pkg.crossplane.io_locks.yaml \
-					pkg.crossplane.io_providerrevisions.yaml \
-					pkg.crossplane.io_providers.yaml)
-
-# Go parameters
-GOCMD   ?= go
-GOBUILD ?= $(GOCMD) build
-GOCLEAN ?= $(GOCMD) clean
-GOTEST  ?= $(GOCMD) test
-GOGET   ?= $(GOCMD) get
-
-BUILD_CMD ?= CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -v \
-				-o $(BINARY_NAME) \
-				-ldflags "-X main.Version=$(VERSION) -X 'main.BuildDate=$(shell date)'" \
-				cmd/crossplane-service-broker/main.go
+PROJECT_ROOT_DIR = .
+include Makefile.vars.mk
 
 .PHONY: all
-all: lint test build
+all: lint test build ## Invokes lint, test & build
 
 .PHONY: build
-build:
-	$(BUILD_CMD)
+build: $(BINARY_NAME) ## Build binary
 	@echo built '$(VERSION)'
 
 $(BINARY_NAME):
 	$(BUILD_CMD)
 
 .PHONY: test
-test:
+test: ## Run tests
 	$(GOTEST) -v -cover ./...
 
 .PHONY: run
-run:
+run: ## Run against the configured Kubernetes cluster
 	go run cmd/crossplane-service-broker/main.go
 
-.PHONY: docker
-docker: $(BINARY_NAME)
-	DOCKER_BUILDKIT=1 docker build -t $(IMAGE_NAME) -t $(E2E_IMAGE) --build-arg VERSION="$(VERSION)" .
+.PHONY: docker-build
+docker-build: $(BINARY_NAME) ## Build the docker image
+	DOCKER_BUILDKIT=1 docker build -t $(DOCKER_IMG) -t $(QUAY_IMG) -t $(E2E_IMG) --build-arg VERSION="$(VERSION)" .
 	@echo built image $(IMAGE_NAME)
 
+.PHONY: docker-push
+docker-push: ## Push the docker image
+	docker push $(DOCKER_IMG)
+	docker push $(QUAY_IMG)
+
 .PHONY: lint
-lint: fmt vet lint_yaml
+lint: fmt vet lint_yaml  ## Invokes the fmt, vet and lint_yaml targets
 	@echo 'Check for uncommitted changes ...'
 	git diff --exit-code
 
 .PHONY: fmt
-fmt:
+fmt: ## Run go fmt against code
 	go fmt ./...
 
 .PHONY: vet
-vet:
+vet: ## Run go vet against code
 	go vet ./...
 
 .PHONY: lint_yaml
@@ -114,8 +68,11 @@ $(TESTDATA_CRD_DIR)/%.yaml:
 	curl -sSLo $@ https://raw.githubusercontent.com/crossplane/crossplane/$(CROSSPLANE_VERSION)/cluster/charts/crossplane/crds/$*.yaml
 
 .PHONY: integration_test
-integration_test: $(CROSSPLANE_CRDS)
-	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); go test -tags=integration -v ./... -coverprofile cover.out
+integration_test: $(CROSSPLANE_CRDS) ## Run integration tests with envtest
+	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; \
+	fetch_envtest_tools $(ENVTEST_ASSETS_DIR); \
+	setup_envtest_env $(ENVTEST_ASSETS_DIR); \
+	go test -tags=integration -v ./... -coverprofile cover.out
 
 .PHONY: setup_e2e_test
 setup_e2e_test: export KUBECONFIG = $(KIND_KUBECONFIG)
@@ -135,6 +92,7 @@ $(KIND_BIN): $(TESTBIN_DIR)
 	@docker network connect "kind" "$(KIND_REGISTRY_NAME)" || true
 	kubectl cluster-info
 
+.PHONY: clean
 clean: export KUBECONFIG = $(KIND_KUBECONFIG)
 clean:
 	$(GOCLEAN)
@@ -142,14 +100,17 @@ clean:
 	$(KIND_BIN) delete cluster --name $(KIND_CLUSTER) || true
 	docker stop "$(KIND_REGISTRY_NAME)" || true
 	docker rm "$(KIND_REGISTRY_NAME)" || true
-	docker rmi "$(E2E_IMAGE)" || true
-	rm -r testbin/ dist/ bin/ cover.out $(BIN_FILENAME) || true
+	docker rmi "$(E2E_IMG)" || true
+	rm -r testbin/ dist/ bin/ cover.out $(BINARY_NAME) || true
 	$(MAKE) -C e2e clean
 
 .PHONY: install_bats
 install_bats:
 	$(MAKE) -C e2e install_bats
 
-e2e_test: docker
-	docker push $(E2E_IMAGE)
+e2e_test: docker-build
 	$(MAKE) -C e2e run_bats -e KUBECONFIG=../$(KIND_KUBECONFIG)
+
+.PHONY: help
+help: ## Show this help
+	@grep -E -h '\s##\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

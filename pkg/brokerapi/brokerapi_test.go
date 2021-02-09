@@ -279,7 +279,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 		want          *domain.DeprovisionServiceSpec
 		wantErr       error
 		resources     func() []runtime.Object
-		customCheckFn integration.CustomCheckFunc
+		customCheckFn func(t *testing.T, c client.Client)
 	}{
 		{
 			name: "requires instance to exist before deprovisioning",

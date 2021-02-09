@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// Plan is a wrapper around a Composition representing a service plan.
 type Plan struct {
 	Composition *xv1.Composition
 	Labels      *Labels
@@ -17,6 +18,7 @@ type Plan struct {
 	Description string
 }
 
+// GVK returns the group, version, kind type for the composite type ref.
 func (p Plan) GVK() (schema.GroupVersionKind, error) {
 	groupVersion, err := schema.ParseGroupVersion(p.Composition.Spec.CompositeTypeRef.APIVersion)
 	if err != nil {
@@ -39,19 +41,23 @@ func newPlan(c xv1.Composition) (*Plan, error) {
 	}, nil
 }
 
+// Instance is a wrapper around a specific instance  (a composite).
 type Instance struct {
 	Composite *composite.Unstructured
 	Labels    *Labels
 }
 
+// ID returns the instance name.
 func (i Instance) ID() string {
 	return i.Composite.GetName()
 }
 
+// Ready returns if the instance contains a ready = true status.
 func (i Instance) Ready() bool {
 	return i.Composite.GetCondition(xrv1.TypeReady).Status == corev1.ConditionTrue
 }
 
+// Parameters returns the specified parameters if available.
 func (i Instance) Parameters() map[string]interface{} {
 	p, err := fieldpath.Pave(i.Composite.Object).GetValue(instanceSpecParamsPath)
 	if err != nil {
@@ -64,6 +70,7 @@ func (i Instance) Parameters() map[string]interface{} {
 	return v
 }
 
+// ResourceRefs returns all referenced resources.
 func (i Instance) ResourceRefs() []corev1.ObjectReference {
 	return i.Composite.GetResourceReferences()
 }
@@ -79,6 +86,7 @@ func newInstance(c *composite.Unstructured) (*Instance, error) {
 	}, nil
 }
 
+// MariaDBProvisionAdditionalParams are the required parameters to create a mariadb database instance.
 type MariaDBProvisionAdditionalParams struct {
 	ParentReference string `json:"parent_reference"`
 }
