@@ -19,4 +19,5 @@ require (
 	k8s.io/client-go v0.19.3
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	sigs.k8s.io/controller-runtime v0.6.4
+	sigs.k8s.io/kustomize/kustomize/v3 v3.10.0 // indirect
 )

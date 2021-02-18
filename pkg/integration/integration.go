@@ -100,10 +100,18 @@ func NewTestService(serviceID string, serviceName crossplane.ServiceName) *xv1.C
 
 // NewTestServicePlan creates a new service plan.
 func NewTestServicePlan(serviceID, planID string, serviceName crossplane.ServiceName) *crossplane.Plan {
-	name := "small" + planID
+	return NewTestServicePlanWithSize(serviceID, planID, serviceName, "small"+planID, "standard")
+}
+
+// NewTestServicePlanWithSize creates a new service plan with a specified size.
+func NewTestServicePlanWithSize(serviceID, planID string, serviceName crossplane.ServiceName, name, sla string) *crossplane.Plan {
 	return &crossplane.Plan{
 		Labels: &crossplane.Labels{
-			PlanName: name,
+			ServiceID:   serviceID,
+			ServiceName: serviceName,
+			PlanName:    name,
+			SLA:         sla,
+			Bindable:    false,
 		},
 		Composition: &xv1.Composition{
 			TypeMeta: metav1.TypeMeta{
@@ -116,6 +124,7 @@ func NewTestServicePlan(serviceID, planID string, serviceName crossplane.Service
 					crossplane.ServiceIDLabel:   serviceID,
 					crossplane.ServiceNameLabel: string(serviceName),
 					crossplane.PlanNameLabel:    name,
+					crossplane.SLALabel:         sla,
 					crossplane.BindableLabel:    "false",
 				},
 				Annotations: map[string]string{

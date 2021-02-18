@@ -3,46 +3,51 @@ SHELL := /bin/bash
 
 # Disable built-in rules
 MAKEFLAGS += --no-builtin-rules
-MAKEFLAGS += --warn-undefined-variables
-.SHELLFLAGS := -eu -o pipefail -c
+MAKEFLAGS += --no-builtin-variables
 .SUFFIXES:
 .SECONDARY:
 
 PROJECT_ROOT_DIR = .
 include Makefile.vars.mk
 
-.PHONY: all
-all: lint test build ## Invokes lint, test & build
+e2e_make := $(MAKE) -C e2e
+go_build ?= CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v \
+				-o $(BIN_FILENAME) \
+				-ldflags "-X main.version=$(VERSION)" \
+				cmd/crossplane-service-broker/main.go
 
-.PHONY: build
-build: $(BINARY_NAME) ## Build binary
-	@echo built '$(VERSION)'
+# Run tests (see https://sdk.operatorframework.io/docs/building-operators/golang/references/envtest-setup)
+ENVTEST_ASSETS_DIR=$(shell pwd)/testdata
 
-$(BINARY_NAME):
-	$(BUILD_CMD)
+all: lint test build ## Invokes the lint, test & build targets
 
 .PHONY: test
 test: ## Run tests
-	$(GOTEST) -v -cover ./...
+	go test -v ./... -coverprofile cover.out
+
+# See https://storage.googleapis.com/kubebuilder-tools/ for list of supported K8s versions
+#
+# A note on 1.20.2:
+# 1.20.2 is not (yet) supported, because starting the Kubernetes API controller with
+# `--insecure-port` and `--insecure-bind-address` flags is now deprecated,
+# but envtest was not updated accordingly.
+#integration-test: export ENVTEST_K8S_VERSION = 1.20.2
+integration-test: export ENVTEST_K8S_VERSION = 1.19.2
+integration-test: export KUBEBUILDER_ATTACH_CONTROL_PLANE_OUTPUT = $(INTEGRATION_TEST_DEBUG_OUTPUT)
+integration-test: $(CROSSPLANE_CRDS) ## Run integration tests with envtest
+	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || \
+		curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/master/hack/setup-envtest.sh
+	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; \
+		fetch_envtest_tools $(ENVTEST_ASSETS_DIR); \
+		setup_envtest_env $(ENVTEST_ASSETS_DIR); \
+		go test -tags=integration -v ./... -coverprofile cover.out
+
+.PHONY: build
+build: fmt vet $(BIN_FILENAME) ## Build binary
 
 .PHONY: run
-run: ## Run against the configured Kubernetes cluster
+run: fmt vet ## Run against the configured Kubernetes cluster in KUBECONFIG
 	go run cmd/crossplane-service-broker/main.go
-
-.PHONY: docker-build
-docker-build: $(BINARY_NAME) ## Build the docker image
-	DOCKER_BUILDKIT=1 docker build -t $(DOCKER_IMG) -t $(QUAY_IMG) -t $(E2E_IMG) --build-arg VERSION="$(VERSION)" .
-	@echo built image $(IMAGE_NAME)
-
-.PHONY: docker-push
-docker-push: ## Push the docker image
-	docker push $(DOCKER_IMG)
-	docker push $(QUAY_IMG)
-
-.PHONY: lint
-lint: fmt vet lint_yaml  ## Invokes the fmt, vet and lint_yaml targets
-	@echo 'Check for uncommitted changes ...'
-	git diff --exit-code
 
 .PHONY: fmt
 fmt: ## Run go fmt against code
@@ -56,61 +61,93 @@ vet: ## Run go vet against code
 lint_yaml: $(YAML_FILES)
 	$(YAMLLINT_DOCKER) -f parsable -c $(YAMLLINT_CONFIG) $(YAMLLINT_ARGS) -- $?
 
-.PHONY: docs-serve
-docs-serve:
-	$(ANTORA_PREVIEW_CMD)
+.PHONY: lint
+lint: fmt vet lint_yaml ## Invokes the fmt and vet targets
+	@echo 'Check for uncommitted changes ...'
+	git diff --exit-code
 
-$(TESTBIN_DIR):
-	mkdir $(TESTBIN_DIR)
+.PHONY: docker-build
+docker-build: export GOOS = linux
+docker-build: $(BIN_FILENAME) ## Build the docker image
+	docker build . -t $(DOCKER_IMG) -t $(QUAY_IMG) -t $(E2E_IMG) --build-arg VERSION="$(VERSION)"
 
-# TODO(mw): something with this target is off, $@ should be used instead of $*.yaml but I can't seem to make it work.
-$(TESTDATA_CRD_DIR)/%.yaml:
-	curl -sSLo $@ https://raw.githubusercontent.com/crossplane/crossplane/$(CROSSPLANE_VERSION)/cluster/charts/crossplane/crds/$*.yaml
+.PHONY: docker-push
+docker-push: ## Push the docker image
+	docker push $(DOCKER_IMG)
+	docker push $(QUAY_IMG)
 
-.PHONY: integration_test
-integration_test: $(CROSSPLANE_CRDS) ## Run integration tests with envtest
-	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; \
-	fetch_envtest_tools $(ENVTEST_ASSETS_DIR); \
-	setup_envtest_env $(ENVTEST_ASSETS_DIR); \
-	go test -tags=integration -v ./... -coverprofile cover.out
-
-.PHONY: setup_e2e_test
-setup_e2e_test: export KUBECONFIG = $(KIND_KUBECONFIG)
-setup_e2e_test: $(KIND_BIN)
-	@kubectl config use-context kind-$(KIND_CLUSTER)
-
-.PHONY: run_kind
-run_kind: export KUBECONFIG = $(KIND_KUBECONFIG)
-run_kind: setup_e2e_test run
-
-$(KIND_BIN): export KUBECONFIG = $(KIND_KUBECONFIG)
-$(KIND_BIN): $(TESTBIN_DIR)
-	curl -Lo $(KIND_BIN) "https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-$$(uname)-amd64"
-	chmod +x $(KIND_BIN)
-	docker run -d -p "$(KIND_REGISTRY_PORT):5000" --name "$(KIND_REGISTRY_NAME)" docker.io/library/registry:2
-	$(KIND_BIN) create cluster --name $(KIND_CLUSTER) --image kindest/node:$(KIND_NODE_VERSION) --config=e2e/kind-config.yaml
-	@docker network connect "kind" "$(KIND_REGISTRY_NAME)" || true
-	kubectl cluster-info
-
-.PHONY: clean
 clean: export KUBECONFIG = $(KIND_KUBECONFIG)
-clean:
-	$(GOCLEAN)
-	rm -f $(BINARY_NAME)
-	$(KIND_BIN) delete cluster --name $(KIND_CLUSTER) || true
-	docker stop "$(KIND_REGISTRY_NAME)" || true
-	docker rm "$(KIND_REGISTRY_NAME)" || true
-	docker rmi "$(E2E_IMG)" || true
-	rm -r testbin/ dist/ bin/ cover.out $(BINARY_NAME) || true
-	$(MAKE) -C e2e clean
-
-.PHONY: install_bats
-install_bats:
-	$(MAKE) -C e2e install_bats
-
-e2e_test: docker-build
-	$(MAKE) -C e2e run_bats -e KUBECONFIG=../$(KIND_KUBECONFIG)
+clean: e2e-clean kind-clean ## Cleans up the generated resources
+	rm -r testbin/ dist/ bin/ cover.out $(BIN_FILENAME) || true
 
 .PHONY: help
 help: ## Show this help
 	@grep -E -h '\s##\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+###
+### Assets
+###
+
+$(testbin_created):
+	mkdir -p $(TESTBIN_DIR)
+	# a marker file must be created, because the date of the
+	# directory may update when content in it is created/updated,
+	# which would cause a rebuild / re-initialization of dependants
+	@touch $(testbin_created)
+
+# Build the binary without running generators
+.PHONY: $(BIN_FILENAME)
+$(BIN_FILENAME):
+	$(go_build)
+
+# TODO(mw): something with this target is off, $@ should be used instead of $*.yaml but I can't seem to make it work.
+$(TESTDATA_CRD_DIR)/%.yaml: $(testbin_created)
+	curl -sSLo $@ https://raw.githubusercontent.com/crossplane/crossplane/$(CROSSPLANE_VERSION)/cluster/charts/crossplane/crds/$*.yaml
+
+###
+### KIND
+###
+
+.PHONY: kind-setup
+kind-setup: ## Creates a kind instance if one does not exist yet.
+	@$(e2e_make) kind-setup
+
+.PHONY: kind-clean
+kind-clean: ## Removes the kind instance if it exists.
+	@$(e2e_make) kind-clean
+
+.PHONY: kind-run
+kind-run: export KUBECONFIG = $(KIND_KUBECONFIG)
+kind-run: kind-setup install run ## Runs the operator on the local host but configured for the kind cluster
+
+kind-e2e-image: docker-build
+	$(e2e_make) kind-e2e-image
+
+###
+### E2E Test
+###
+
+.PHONY: e2e-test
+e2e-test: export KUBECONFIG = $(KIND_KUBECONFIG)
+e2e-test: e2e-setup docker-build install ## Run the e2e tests
+	@$(e2e_make) test
+
+.PHONY: e2e-setup
+e2e-setup: export KUBECONFIG = $(KIND_KUBECONFIG)
+e2e-setup: ## Run the e2e setup
+	@$(e2e_make) setup
+
+.PHONY: e2e-clean-setup
+e2e-clean-setup: export KUBECONFIG = $(KIND_KUBECONFIG)
+e2e-clean-setup: ## Clean the e2e setup (e.g. to rerun the e2e-setup)
+	@$(e2e_make) clean-setup
+
+.PHONY: e2e-clean
+e2e-clean: ## Remove all e2e-related resources (incl. all e2e Docker images)
+	@$(e2e_make) clean
+
+###
+### Documentation
+###
+
+include ./docs/docs.mk
