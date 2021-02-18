@@ -18,7 +18,7 @@ else
 	xargs := xargs
 endif
 
-bats := node_modules/.bin/bats
+bats := node_modules/bats/bin/bats
 bats_args ?=
 
 .DEFAULT_GOAL := help
@@ -31,7 +31,7 @@ test: setup kind-e2e-image ## Run the E2E tests
 	@$(bats) . $(bats_args)
 
 kind-e2e-image: kind-setup ## Load the e2e container image onto e2e cluster
-	@$(KIND) load docker-image --name $(KIND_CLUSTER) $(E2E_IMG)
+	$(KIND) load docker-image --name $(KIND_CLUSTER) $(E2E_IMG)
 
 .PHONY: setup
 setup: export KUBECONFIG = $(KIND_KUBECONFIG)

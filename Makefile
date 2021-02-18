@@ -118,7 +118,7 @@ kind-clean: ## Removes the kind instance if it exists.
 
 .PHONY: kind-run
 kind-run: export KUBECONFIG = $(KIND_KUBECONFIG)
-kind-run: kind-setup install run ## Runs the operator on the local host but configured for the kind cluster
+kind-run: kind-setup run ## Runs the service broker on the local host but configured for the kind cluster
 
 kind-e2e-image: docker-build
 	$(e2e_make) kind-e2e-image
@@ -129,7 +129,7 @@ kind-e2e-image: docker-build
 
 .PHONY: e2e-test
 e2e-test: export KUBECONFIG = $(KIND_KUBECONFIG)
-e2e-test: e2e-setup docker-build install ## Run the e2e tests
+e2e-test: e2e-setup docker-build ## Run the e2e tests
 	@$(e2e_make) test
 
 .PHONY: e2e-setup

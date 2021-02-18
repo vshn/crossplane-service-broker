@@ -9,4 +9,4 @@ spec:
     spec:
       containers:
         - name: crossplane-service-broker
-          image: local.dev/vshn/crossplane-service-broker:e2e
+          image: $E2E_IMAGE
