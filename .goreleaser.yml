@@ -9,6 +9,8 @@ builds:
     goos:
       - linux
 
+    main: "./cmd/crossplane-service-broker/main.go"
+
 checksum:
   name_template: "checksums.txt"
 
