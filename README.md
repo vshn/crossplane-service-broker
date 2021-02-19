@@ -12,7 +12,7 @@ Redis and MariaDB instances via [crossplane](https://crossplane.io/).
 
 ## Documentation
 
-TBD using antora.
+Most of the explanation on how this all works together currently lives in the [VSHN Knowledgebase](https://kb.vshn.ch/app-catalog/explanations/crossplane_service_broker.html).
 
 ## Contributing
 
@@ -25,7 +25,7 @@ You'll need:
 - docker
 - make
 
-These are the most common make targets: `build`, `test`, `docker`, `run`.
+These are the most common make targets: `build`, `test`, `docker-build`, `run`.
 
 ### Folder structure overview
 
@@ -37,12 +37,13 @@ These are the most common make targets: `build`, `test`, `docker`, `run`.
 │   └── base                         # deployment files
 ├── docs                             # antora docs
 ├── e2e                              # e2e testing files
-├── internal
-│   ├── broker                       # translation layer between crossplane <-> open service broker
-│   └── crossplane                   # crossplane service layer
 ├── pkg
 │   ├── api                          # exposed HTTP API server
-│   └── brokerapi                    # service broker implementation
+│   ├── brokerapi                    # service broker implementation
+│   ├── config                       # app config
+│   ├── crossplane                   # crossplane service layer
+│   ├── integration                  # utilities for integration tests
+│   └── reqcontext                   # request context mapping
 └── testdata                         # integration testing files
 ```
 
@@ -51,7 +52,7 @@ These are the most common make targets: `build`, `test`, `docker`, `run`.
 You can run the operator in different ways:
 
 1. using `make run` (provide your own env variables)
-1. using `make run_kind` (uses KIND to install a cluster in docker and provides its own kubeconfig in `testbin/`)
+1. using `make kind-run` (uses KIND to install a cluster in docker and provides its own kubeconfig in `testbin/`)
 1. using a configuration of your favorite IDE (see below for VSCode example)
 
 Example VSCode run configuration:
@@ -123,16 +124,10 @@ e2e test as of now but are meant as a base to build upon.
 
 You need `node` and `npm` to run the tests, as it runs with [DETIK][detik].
 
-First, setup a local e2e environment
-
-```
-make install_bats setup_e2e_test
-```
-
 To run e2e tests for newer K8s versions run
 
 ```
-make e2e_test
+make e2e-test
 ```
 
 To remove the local KIND cluster and other resources, run
