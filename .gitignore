@@ -11,3 +11,5 @@ crossplane-service-broker
 !cmd/crossplane-service-broker
 cover.out
 vendor/
+
+.github/release-notes.md
