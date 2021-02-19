@@ -69,7 +69,7 @@ lint: fmt vet lint_yaml ## Invokes the fmt and vet targets
 .PHONY: docker-build
 docker-build: export GOOS = linux
 docker-build: $(BIN_FILENAME) ## Build the docker image
-	docker build . -t $(DOCKER_IMG) -t $(QUAY_IMG) -t $(E2E_IMG) --build-arg VERSION="$(VERSION)"
+	docker build . -t $(DOCKER_IMG) -t $(QUAY_IMG) -t $(E2E_IMG)
 
 .PHONY: docker-push
 docker-push: ## Push the docker image
