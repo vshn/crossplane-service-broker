@@ -58,7 +58,7 @@ func (msb MariadbServiceBinder) Bind(_ context.Context, _ string) (Credentials, 
 	).WithErrorKey("BindingNotSupported").Build()
 }
 
-// Unind on a MariaDB instance is not supported - only a database referencing an instance can be bound.
+// Unbind on a MariaDB instance is not supported - only a database referencing an instance can be bound.
 func (msb MariadbServiceBinder) Unbind(_ context.Context, _ string) error {
 	return errNotImplemented
 }
@@ -91,6 +91,7 @@ func (msb MariadbServiceBinder) GetBinding(_ context.Context, _ string) (Credent
 	return nil, errNotImplemented
 }
 
+// FinishProvision is called after a successful provisioning
 // FIXME(mw): FinishProvision might be needed, but probably not.
 func (msb MariadbServiceBinder) FinishProvision(ctx context.Context) error {
 	s, err := msb.cp.getCredentials(ctx, msb.id)
@@ -103,5 +104,5 @@ func (msb MariadbServiceBinder) FinishProvision(ctx context.Context) error {
 	if s.Data[xrv1.ResourceCredentialsSecretEndpointKey] != nil {
 		return nil
 	}
-	return errors.New("FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation.")
+	return errors.New("finishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation")
 }

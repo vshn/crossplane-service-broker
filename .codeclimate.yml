@@ -1,0 +1,18 @@
+version: "2"
+plugins:
+  shellcheck:
+    enabled: true
+  # https://github.com/codeclimate-community/codeclimate-govet/issues/25
+  # govet:
+  #   enabled: true
+  gofmt:
+    enabled: true
+  golint:
+    enabled: true
+exclude_patterns:
+  - "testdata/"
+  - "**/vendor/"
+  - "**/*_test.go"
+  - "e2e/lib/"
+  - "docs/"
+  - "deploy/"

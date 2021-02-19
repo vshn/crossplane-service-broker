@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// Config contains all configuration values.
 type Config struct {
 	Kubeconfig     string
 	ServiceIDs     []string
@@ -22,6 +23,7 @@ type Config struct {
 	MaxHeaderBytes int
 }
 
+// ReadConfig reads env variables using the passed function.
 func ReadConfig(getEnv func(string) string) (*Config, error) {
 	cfg := Config{
 		Kubeconfig: getEnv("KUBECONFIG"),

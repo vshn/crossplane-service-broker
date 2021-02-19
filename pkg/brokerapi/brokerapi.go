@@ -21,11 +21,12 @@ type BrokerAPI struct {
 	logger lager.Logger
 }
 
-func New(cp *crossplane.Crossplane, logger lager.Logger) (*BrokerAPI, error) {
+// New sets up a new broker api
+func New(cp *crossplane.Crossplane, logger lager.Logger) *BrokerAPI {
 	return &BrokerAPI{
 		broker: NewBroker(cp),
 		logger: logger,
-	}, nil
+	}
 }
 
 // Services gets the catalog of services offered by the service broker

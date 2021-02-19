@@ -1,4 +1,4 @@
-// Package API exposes an http.Handler which registers all routes necessary to act as an OSB-compatible router.
+// Package api exposes an http.Handler which registers all routes necessary to act as an OSB-compatible router.
 // It's the main entrypoint to the public API of crossplace-service-broker.
 package api
 
@@ -14,11 +14,13 @@ import (
 	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
 )
 
+// API is a http.Handler
 type API struct {
 	r      *mux.Router
 	logger lager.Logger
 }
 
+// New creates a new API
 func New(sb domain.ServiceBroker, username, password string, logger lager.Logger) *API {
 	router := mux.NewRouter()
 
@@ -41,6 +43,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	a.r.ServeHTTP(w, req)
 }
 
+// LoggerMiddleware logs a debug log with headers.
 func LoggerMiddleware(logger lager.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

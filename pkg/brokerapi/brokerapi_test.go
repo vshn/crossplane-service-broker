@@ -81,8 +81,7 @@ func TestBrokerAPI_Services(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -242,8 +241,7 @@ func TestBrokerAPI_Provision(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -279,7 +277,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 		want          *domain.DeprovisionServiceSpec
 		wantErr       error
 		resources     func() []runtime.Object
-		customCheckFn integration.CustomCheckFunc
+		customCheckFn func(t *testing.T, c client.Client)
 	}{
 		{
 			name: "requires instance to exist before deprovisioning",
@@ -365,8 +363,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -528,8 +525,7 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -706,7 +702,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				}, objs
 			},
 			want:    nil,
-			wantErr: errors.New(`FinishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation. (correlation-id: "corrid")`),
+			wantErr: errors.New(`finishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation (correlation-id: "corrid")`),
 		},
 		{
 			name: "creates a mariadb instance and binds a database instance to it",
@@ -787,8 +783,7 @@ func TestBrokerAPI_Bind(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -900,8 +895,7 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -999,8 +993,7 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1218,8 +1211,7 @@ func TestBrokerAPI_Update(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1319,8 +1311,7 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 	require.NoError(t, err, "unable to setup integration test manager")
 	defer m.Cleanup()
 
-	bAPI, err := New(cp, logger)
-	require.NoError(t, err, "unable to setup brokerapi")
+	bAPI := New(cp, logger)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

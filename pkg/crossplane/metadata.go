@@ -48,6 +48,7 @@ const (
 	SLAStandard = "standard"
 )
 
+// Labels provides uniform access to parsed labels.
 type Labels struct {
 	ServiceName ServiceName
 	ServiceID   string

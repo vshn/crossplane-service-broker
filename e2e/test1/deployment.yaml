@@ -9,4 +9,17 @@ spec:
     spec:
       containers:
         - name: crossplane-service-broker
-          image: localhost:5000/vshn/crossplane-service-broker:e2e
+          image: $E2E_IMAGE
+          imagePullPolicy: Never
+          env:
+            - name: OSB_USERNAME
+              value: test
+            - name: OSB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: crossplane-service-broker
+                  key: password
+            - name: OSB_NAMESPACE
+              value: test
+            - name: OSB_SERVICE_IDS
+              value: test

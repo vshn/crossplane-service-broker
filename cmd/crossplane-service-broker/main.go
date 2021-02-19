@@ -24,11 +24,15 @@ const (
 	exitCodeErr = 1
 )
 
+var (
+	version = "dev"
+)
+
 func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
-	logger := lager.NewLogger("crossplane-service-broker")
+	logger := lager.NewLogger("crossplane-service-broker").WithData(lager.Data{"version": version})
 	logger.RegisterSink(lager.NewPrettySink(os.Stdout, lager.DEBUG))
 
 	signalChan := make(chan os.Signal, 1)
@@ -46,6 +50,8 @@ func main() {
 }
 
 func run(signalChan chan os.Signal, logger lager.Logger) error {
+	logger.Info("starting crossplane-service-broker")
+
 	cfg, err := config.ReadConfig(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("unable to read app env: %w", err)
@@ -62,10 +68,7 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 		return err
 	}
 
-	b, err := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}))
-	if err != nil {
-		return err
-	}
+	b := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}))
 
 	a := api.New(b, cfg.Username, cfg.Password, logger.WithData(lager.Data{"component": "api"}))
 	router.NewRoute().Handler(a)

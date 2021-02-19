@@ -81,6 +81,7 @@ func New(serviceIDs []string, namespace string, config *rest.Config) (*Crossplan
 	return &cp, nil
 }
 
+// ServiceXRD is a wrapper around a CompositeResourceDefinition (XRD) which represents a service.
 type ServiceXRD struct {
 	XRD         xv1.CompositeResourceDefinition
 	Labels      *Labels
@@ -162,7 +163,7 @@ func (cp Crossplane) Plan(rctx *reqcontext.ReqContext, planID string) (*Plan, er
 	return newPlan(composition)
 }
 
-// Instances retrieves an instance based on the given instanceID and plan. Besides the instanceID, the planName
+// Instance retrieves an instance based on the given instanceID and plan. Besides the instanceID, the planName
 // has to match.
 // The `ok` parameter is *only* set to true if no error is returned and the instance already exists.
 // Normal errors are returned as-is.

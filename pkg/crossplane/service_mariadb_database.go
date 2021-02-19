@@ -146,6 +146,7 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 	return creds, nil
 }
 
+// ValidateProvisionParams ensures the passed parent reference is an existing mariadb instance.
 func (msb MariadbDatabaseServiceBinder) ValidateProvisionParams(ctx context.Context, params json.RawMessage) (map[string]interface{}, error) {
 	p := MariaDBProvisionAdditionalParams{}
 	if err := json.Unmarshal(params, &p); err != nil {

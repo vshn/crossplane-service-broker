@@ -87,7 +87,7 @@ Example VSCode run configuration:
 "Integration" testing is done using [envtest](https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/envtest) and [crossplane's integration test helper](https://github.com/crossplane/crossplane-runtime/tree/master/pkg/test/integration).
 
 ```
-make integration_test
+make integration-test
 ```
 
 Example VSCode run configuration (to be able to debug things):
@@ -124,16 +124,19 @@ e2e test as of now but are meant as a base to build upon.
 You need `node` and `npm` to run the tests, as it runs with [DETIK][detik].
 
 First, setup a local e2e environment
+
 ```
 make install_bats setup_e2e_test
 ```
 
 To run e2e tests for newer K8s versions run
+
 ```
 make e2e_test
 ```
 
 To remove the local KIND cluster and other resources, run
+
 ```
 make clean
 ```

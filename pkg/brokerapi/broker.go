@@ -22,10 +22,12 @@ var (
 	ErrPlanChangeNotPermitted = errors.New("plan change not permitted")
 )
 
+// Broker implements the service broker
 type Broker struct {
 	cp *crossplane.Crossplane
 }
 
+// NewBroker sets up a new broker.
 func NewBroker(cp *crossplane.Crossplane) *Broker {
 	return &Broker{
 		cp: cp,
@@ -116,6 +118,7 @@ func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string
 	return res, nil
 }
 
+// Deprovision removes a provisioned instance.
 func (b Broker) Deprovision(rctx *reqcontext.ReqContext, instanceID, planID string) (domain.DeprovisionServiceSpec, error) {
 	res := domain.DeprovisionServiceSpec{
 		IsAsync: false,
@@ -140,6 +143,7 @@ func (b Broker) Deprovision(rctx *reqcontext.ReqContext, instanceID, planID stri
 	return res, nil
 }
 
+// Bind creates a binding between a provisioned service instance and an application.
 func (b Broker) Bind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID string) (domain.Binding, error) {
 	res := domain.Binding{
 		IsAsync: false,
@@ -174,6 +178,7 @@ func (b Broker) Bind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID 
 	return res, nil
 }
 
+// Unbind removes a binding.
 func (b Broker) Unbind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID string) (domain.UnbindSpec, error) {
 	res := domain.UnbindSpec{
 		IsAsync: false,
@@ -199,6 +204,7 @@ func (b Broker) Unbind(rctx *reqcontext.ReqContext, instanceID, bindingID, planI
 	return res, nil
 }
 
+// LastOperation retrieves an instance's status.
 func (b Broker) LastOperation(rctx *reqcontext.ReqContext, instanceID, planID string) (domain.LastOperation, error) {
 	res := domain.LastOperation{}
 
@@ -237,6 +243,7 @@ func (b Broker) LastOperation(rctx *reqcontext.ReqContext, instanceID, planID st
 	return res, nil
 }
 
+// GetBinding retrieves a binding to get credentials.
 func (b Broker) GetBinding(rctx *reqcontext.ReqContext, instanceID, bindingID string) (domain.GetBindingSpec, error) {
 	res := domain.GetBindingSpec{}
 
@@ -263,6 +270,7 @@ func (b Broker) GetBinding(rctx *reqcontext.ReqContext, instanceID, bindingID st
 	return res, nil
 }
 
+// GetInstance gets a provisioned instance.
 func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string) (domain.GetInstanceDetailsSpec, error) {
 	res := domain.GetInstanceDetailsSpec{}
 
@@ -282,6 +290,7 @@ func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string) (dom
 	return res, nil
 }
 
+// Update allows to change the SLA level from standard -> premium (and vice-versa).
 func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPlanID, newPlanID string) (domain.UpdateServiceSpec, error) {
 	res := domain.UpdateServiceSpec{}
 

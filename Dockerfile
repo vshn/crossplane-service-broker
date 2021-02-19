@@ -7,16 +7,13 @@ ENV CGO_ENABLED=0
 
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=$GOPATH/pkg/mod \
-    go mod download
+  go mod download
 
 COPY . .
 
-RUN --mount=type=cache,target=$HOME/.cache/go-build \
-    make test
-
 ARG VERSION="none"
 RUN --mount=type=cache,target=$HOME/.cache/go-build \
-    make build
+  make build
 
 FROM gcr.io/distroless/static:nonroot
 
