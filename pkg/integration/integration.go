@@ -16,7 +16,6 @@ import (
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -228,10 +227,10 @@ func newTestNamespace(name string) *corev1.Namespace {
 }
 
 // CreateObjects sets up the specified objects.
-func CreateObjects(ctx context.Context, objs []runtime.Object) PrePostRunFunc {
+func CreateObjects(ctx context.Context, objs []client.Object) PrePostRunFunc {
 	return func(c client.Client) error {
 		for _, obj := range objs {
-			if err := c.Create(ctx, obj.DeepCopyObject()); err != nil {
+			if err := c.Create(ctx, obj.DeepCopyObject().(client.Object)); err != nil {
 				return err
 			}
 		}
@@ -240,7 +239,7 @@ func CreateObjects(ctx context.Context, objs []runtime.Object) PrePostRunFunc {
 }
 
 // RemoveObjects removes the specified objects.
-func RemoveObjects(ctx context.Context, objs []runtime.Object) PrePostRunFunc {
+func RemoveObjects(ctx context.Context, objs []client.Object) PrePostRunFunc {
 	return func(c client.Client) error {
 		for _, obj := range objs {
 			if err := c.Delete(ctx, obj); err != nil {
@@ -276,7 +275,7 @@ func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 
 	logger := lager.NewLogger("test")
 
-	require.NoError(t, CreateObjects(context.Background(), []runtime.Object{newTestNamespace(TestNamespace)})(m.GetClient()))
+	require.NoError(t, CreateObjects(context.Background(), []client.Object{newTestNamespace(TestNamespace)})(m.GetClient()))
 
 	cp, err := crossplane.New([]string{"1", "2"}, TestNamespace, m.GetConfig())
 	if err != nil {
