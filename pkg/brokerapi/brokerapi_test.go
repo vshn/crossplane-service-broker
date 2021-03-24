@@ -8,29 +8,55 @@ import (
 	"errors"
 	"testing"
 
+	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
 	"github.com/pivotal-cf/brokerapi/v7/middlewares"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cintegration "github.com/crossplane/crossplane-runtime/pkg/test/integration"
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 	"github.com/vshn/crossplane-service-broker/pkg/integration"
 )
 
-func TestBrokerAPI_Services(t *testing.T) {
+type EnvTestSuite struct {
+	suite.Suite
+	Ctx        context.Context
+	Logger     lager.Logger
+	Manager    *cintegration.Manager
+	Crossplane *crossplane.Crossplane
+}
+
+func (ts *EnvTestSuite) SetupSuite() {
+	m, logger, cp, err := integration.SetupManager(ts.T())
+	ts.Require().NoError(err, "unable to setup integration test manager")
+
+	ts.Logger = logger
+	ts.Manager = m
+	ts.Crossplane = cp
+	ts.Ctx = context.Background()
+}
+
+func (ts *EnvTestSuite) TearDownSuite() {
+	ts.Manager.Cleanup()
+}
+
+func Test_BrokerAPI(t *testing.T) {
+	suite.Run(t, new(EnvTestSuite))
+}
+
+func (ts *EnvTestSuite) TestBrokerAPI_Services() {
 	tests := []struct {
 		name      string
-		ctx       context.Context
 		want      []domain.Service
 		wantErr   bool
 		resources []client.Object
 	}{
 		{
 			name: "returns the catalog successfully",
-			ctx:  context.TODO(),
 			resources: []client.Object{
 				integration.NewTestService("1", crossplane.RedisService),
 				integration.NewTestServicePlan("1", "1-1", crossplane.RedisService).Composition,
@@ -76,40 +102,34 @@ func TestBrokerAPI_Services(t *testing.T) {
 		},
 	}
 
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
-
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, integration.CreateObjects(tt.ctx, tt.resources)(m.GetClient()))
-			defer func() {
-				require.NoError(t, integration.RemoveObjects(tt.ctx, tt.resources)(m.GetClient()))
-			}()
+		ts.Run(tt.name, func() {
+			ts.Require().NoError(integration.CreateObjects(ts.Ctx, tt.resources)(ts.Manager.GetClient()))
 
-			got, err := bAPI.Services(tt.ctx)
+			got, err := bAPI.Services(ts.Ctx)
 			if tt.wantErr {
-				assert.Error(t, err)
+				ts.Assert().Error(err)
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(tt.want, got)
 
+			ts.Require().NoError(integration.RemoveObjects(ts.Ctx, tt.resources)(ts.Manager.GetClient()))
 		})
 	}
 }
 
-func TestBrokerAPI_Provision(t *testing.T) {
+func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 	type args struct {
 		ctx          context.Context
 		instanceID   string
 		details      domain.ProvisionDetails
 		asyncAllowed bool
 	}
-	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name      string
@@ -236,39 +256,36 @@ func TestBrokerAPI_Provision(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
 
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, integration.CreateObjects(tt.args.ctx, tt.resources())(m.GetClient()))
+		ts.Run(tt.name, func() {
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, tt.resources())(ts.Manager.GetClient()))
 			defer func() {
-				require.NoError(t, integration.RemoveObjects(tt.args.ctx, tt.resources())(m.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, tt.resources())(ts.Manager.GetClient()))
 			}()
 
 			got, err := bAPI.Provision(tt.args.ctx, tt.args.instanceID, tt.args.details, tt.args.asyncAllowed)
 			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, *tt.want, got)
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
 		})
 	}
 }
 
-func TestBrokerAPI_Deprovision(t *testing.T) {
+func (ts *EnvTestSuite) TestBrokerAPI_Deprovision() {
 	type args struct {
 		ctx          context.Context
 		instanceID   string
 		details      domain.DeprovisionDetails
 		asyncAllowed bool
 	}
-	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name          string
@@ -322,7 +339,7 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 			customCheckFn: func(t *testing.T, c client.Client) {
 				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
 				_, err := integration.GetInstance(ctx, c, servicePlan, "1")
-				assert.EqualError(t, err, `compositeredisinstances.syn.tools "1" not found`)
+				ts.Assert().EqualError(err, `compositeredisinstances.syn.tools "1" not found`)
 			},
 			want:    &domain.DeprovisionServiceSpec{IsAsync: false},
 			wantErr: nil,
@@ -358,47 +375,44 @@ func TestBrokerAPI_Deprovision(t *testing.T) {
 			wantErr: errors.New(`instance is still in use by "2" (correlation-id: "corrid")`),
 		},
 	}
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
 
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ts.Run(tt.name, func() {
 			objs := tt.resources()
-			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			defer func() {
 				// if wantErr == nil, the instance is gone already and would error when trying to remove it again.
 				if tt.wantErr == nil {
 					objs = objs[:len(objs)-1]
 				}
-				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			}()
 
 			got, err := bAPI.Deprovision(tt.args.ctx, tt.args.instanceID, tt.args.details, tt.args.asyncAllowed)
 			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, *tt.want, got)
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
 
 			if tt.customCheckFn != nil {
-				tt.customCheckFn(t, m.GetClient())
+				tt.customCheckFn(ts.T(), ts.Manager.GetClient())
 			}
 		})
 	}
 }
 
-func TestBrokerAPI_LastOperation(t *testing.T) {
+func (ts *EnvTestSuite) TestBrokerAPI_LastOperation() {
 	type args struct {
 		ctx        context.Context
 		instanceID string
 		details    domain.PollDetails
 	}
-	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name      string
@@ -520,44 +534,40 @@ func TestBrokerAPI_LastOperation(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
-
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ts.Run(tt.name, func() {
 			fn, objs := tt.resources()
-			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			if fn != nil {
-				require.NoError(t, fn(m.GetClient()))
+				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
 			defer func() {
-				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			}()
 
 			got, err := bAPI.LastOperation(tt.args.ctx, tt.args.instanceID, tt.args.details)
 			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, *tt.want, got)
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
 		})
 	}
 }
 
-func TestBrokerAPI_Bind(t *testing.T) {
+func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 	type args struct {
 		ctx        context.Context
 		instanceID string
 		bindingID  string
 		details    domain.BindDetails
 	}
-	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name               string
@@ -758,17 +768,17 @@ func TestBrokerAPI_Bind(t *testing.T) {
 				want := expected.(domain.Binding)
 				got := actual.(domain.Binding)
 
-				assert.Equal(t, want.IsAsync, got.IsAsync)
+				ts.Assert().Equal(want.IsAsync, got.IsAsync)
 
 				wantCreds := want.Credentials.(crossplane.Credentials)
 				gotCreds := got.Credentials.(crossplane.Credentials)
 
-				assert.Equal(t, len(wantCreds), len(gotCreds))
+				ts.Assert().Equal(len(wantCreds), len(gotCreds))
 				for k, v := range wantCreds {
 					if v == "***" {
 						assert.Contains(t, gotCreds, k, k)
 					} else {
-						assert.Equal(t, v, gotCreds[k], k)
+						ts.Assert().Equal(v, gotCreds[k], k)
 					}
 				}
 				return true
@@ -778,42 +788,38 @@ func TestBrokerAPI_Bind(t *testing.T) {
 		},
 	}
 
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
-
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ts.Run(tt.name, func() {
 			fn, objs := tt.resources()
-			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			defer func() {
-				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			}()
 			if fn != nil {
-				require.NoError(t, fn(m.GetClient()))
+				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
 			got, err := bAPI.Bind(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details, false)
 			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
-			assert.NoError(t, err)
-			tt.wantComparisonFunc(t, *tt.want, got)
+			ts.Assert().NoError(err)
+			tt.wantComparisonFunc(ts.T(), *tt.want, got)
 		})
 	}
 }
 
-func TestBrokerAPI_GetBinding(t *testing.T) {
+func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 	type args struct {
 		ctx        context.Context
 		instanceID string
 		bindingID  string
 	}
-	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name      string
@@ -890,42 +896,39 @@ func TestBrokerAPI_GetBinding(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
 
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ts.Run(tt.name, func() {
 			fn, objs := tt.resources()
-			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			defer func() {
-				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			}()
 			if fn != nil {
-				require.NoError(t, fn(m.GetClient()))
+				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
 			got, err := bAPI.GetBinding(tt.args.ctx, tt.args.instanceID, tt.args.bindingID)
 			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, *tt.want, got)
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
 		})
 	}
 }
 
-func TestBrokerAPI_GetInstance(t *testing.T) {
+func (ts *EnvTestSuite) TestBrokerAPI_GetInstance() {
 	type args struct {
 		ctx        context.Context
 		instanceID string
 		bindingID  string
 	}
-	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name      string
@@ -988,43 +991,40 @@ func TestBrokerAPI_GetInstance(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
 
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ts.Run(tt.name, func() {
 			fn, objs := tt.resources()
-			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			defer func() {
-				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			}()
 			if fn != nil {
-				require.NoError(t, fn(m.GetClient()))
+				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
 			got, err := bAPI.GetInstance(tt.args.ctx, tt.args.instanceID)
 			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, *tt.want, got)
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
 		})
 	}
 }
 
-func TestBrokerAPI_Update(t *testing.T) {
+func (ts *EnvTestSuite) TestBrokerAPI_Update() {
 	type args struct {
 		ctx        context.Context
 		instanceID string
 		bindingID  string
 		details    domain.UpdateDetails
 	}
-	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name      string
@@ -1206,43 +1206,40 @@ func TestBrokerAPI_Update(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
 
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ts.Run(tt.name, func() {
 			fn, objs := tt.resources()
-			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			defer func() {
-				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			}()
 			if fn != nil {
-				require.NoError(t, fn(m.GetClient()))
+				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
 			got, err := bAPI.Update(tt.args.ctx, tt.args.instanceID, tt.args.details, false)
 			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, *tt.want, got)
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
 		})
 	}
 }
 
-func TestBrokerAPI_Unbind(t *testing.T) {
+func (ts *EnvTestSuite) TestBrokerAPI_Unbind() {
 	type args struct {
 		ctx        context.Context
 		instanceID string
 		bindingID  string
 		details    domain.UnbindDetails
 	}
-	ctx := context.WithValue(context.TODO(), middlewares.CorrelationIDKey, "corrid")
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name      string
@@ -1306,35 +1303,32 @@ func TestBrokerAPI_Unbind(t *testing.T) {
 			wantErr: nil,
 		},
 	}
-	m, logger, cp, err := integration.SetupManager(t)
-	require.NoError(t, err, "unable to setup integration test manager")
-	defer m.Cleanup()
 
-	bAPI := New(cp, logger)
+	bAPI := New(ts.Crossplane, ts.Logger)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ts.Run(tt.name, func() {
 			fn, objs := tt.resources()
-			require.NoError(t, integration.CreateObjects(tt.args.ctx, objs)(m.GetClient()))
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			defer func() {
 				// if wantErr == nil, secret must be gone and would error here if we still would try to remove it again
 				if tt.wantErr == nil {
 					objs = objs[:len(objs)-1]
 				}
-				require.NoError(t, integration.RemoveObjects(tt.args.ctx, objs)(m.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
 			}()
 			if fn != nil {
-				require.NoError(t, fn(m.GetClient()))
+				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
 			got, err := bAPI.Unbind(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details, false)
 			if tt.wantErr != nil {
-				assert.EqualError(t, err, tt.wantErr.Error())
+				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
-			assert.NoError(t, err)
-			assert.Equal(t, *tt.want, got)
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
 		})
 	}
 }
