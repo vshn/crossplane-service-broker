@@ -653,6 +653,58 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 			wantErr:            nil,
 		},
 		{
+			name: "creates a redis instance and tries to bind it while the endpoint is not ready",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.BindDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					servicePlan.Composition,
+					instance,
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"sentinelPort": "21234",
+					}),
+				}
+				return func(c client.Client) error {
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want: &domain.Binding{
+				IsAsync: false,
+				Credentials: crossplane.Credentials{
+					"host":     "localhost",
+					"master":   "redis://1-1-1",
+					"password": "supersecret",
+					"port":     1234,
+					"sentinels": []crossplane.Credentials{
+						{
+							"host": "localhost",
+							"port": 21234,
+						},
+					},
+					"servers": []crossplane.Credentials{
+						{
+							"host": "localhost",
+							"port": 1234,
+						},
+					},
+				},
+			},
+			wantComparisonFunc: nil,
+			wantErr:            errors.New(`binding cannot be fetched (correlation-id: "corrid")`),
+		},
+		{
 			name: "creates a mariadb instance and tries to bind it",
 			args: args{
 				ctx:        ctx,
