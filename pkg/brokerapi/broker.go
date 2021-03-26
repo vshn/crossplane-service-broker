@@ -75,12 +75,12 @@ func (b Broker) servicePlans(rctx *reqcontext.ReqContext, serviceIDs []string) (
 func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string, params json.RawMessage) (domain.ProvisionedServiceSpec, error) {
 	res := domain.ProvisionedServiceSpec{}
 
-	p, err := b.cp.Plan(rctx, planID)
+	plan, err := b.cp.Plan(rctx, planID)
 	if err != nil {
 		return res, err
 	}
 
-	_, exists, err := b.cp.Instance(rctx, instanceID, p)
+	instance, exists, err := b.cp.Instance(rctx, instanceID, plan)
 	if err != nil {
 		return res, err
 	}
@@ -97,7 +97,7 @@ func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string
 	ap := map[string]interface{}{}
 	if params != nil {
 		// ServiceBinderFactory is used out of convenience, however it seems the wrong approach here - might refactor later.
-		sb, err := crossplane.ServiceBinderFactory(b.cp, p.Labels.ServiceName, "", nil, nil, rctx.Logger)
+		sb, err := crossplane.ServiceBinderFactory(b.cp, plan.Labels.ServiceName, instance, rctx.Logger)
 		if err != nil {
 			return res, err
 		}
@@ -109,7 +109,7 @@ func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string
 		}
 	}
 
-	err = b.cp.CreateInstance(rctx, instanceID, p, ap)
+	err = b.cp.CreateInstance(rctx, instanceID, plan, ap)
 	if err != nil {
 		return res, err
 	}
@@ -129,7 +129,7 @@ func (b Broker) Deprovision(rctx *reqcontext.ReqContext, instanceID, planID stri
 		return res, err
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance, rctx.Logger)
 	if err != nil {
 		return res, err
 	}
@@ -157,15 +157,9 @@ func (b Broker) Bind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID 
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance, rctx.Logger)
 	if err != nil {
 		return res, err
-	}
-
-	if fp, ok := sb.(crossplane.FinishProvisioner); ok {
-		if err := fp.FinishProvision(rctx.Context); err != nil {
-			return res, err
-		}
 	}
 
 	creds, err := sb.Bind(rctx.Context, bindingID)
@@ -192,7 +186,7 @@ func (b Broker) Unbind(rctx *reqcontext.ReqContext, instanceID, bindingID, planI
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance, rctx.Logger)
 	if err != nil {
 		return res, err
 	}
@@ -223,15 +217,6 @@ func (b Broker) LastOperation(rctx *reqcontext.ReqContext, instanceID, planID st
 	switch condition.Reason {
 	case xrv1.ReasonAvailable:
 		res.State = domain.Succeeded
-		sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
-		if err != nil {
-			return res, err
-		}
-		if fp, ok := sb.(crossplane.FinishProvisioner); ok {
-			if err := fp.FinishProvision(rctx.Context); err != nil {
-				return res, err
-			}
-		}
 		rctx.Logger.Info("provision-succeeded", lager.Data{"reason": condition.Reason, "message": condition.Message})
 	case xrv1.ReasonCreating:
 		res.State = domain.InProgress
@@ -255,7 +240,7 @@ func (b Broker) GetBinding(rctx *reqcontext.ReqContext, instanceID, bindingID st
 		return res, apiresponses.ErrConcurrentInstanceAccess
 	}
 
-	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance.ID(), instance.ResourceRefs(), instance.Parameters(), rctx.Logger)
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance, rctx.Logger)
 	if err != nil {
 		return res, err
 	}

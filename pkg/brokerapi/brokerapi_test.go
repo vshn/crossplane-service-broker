@@ -684,36 +684,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 			wantErr: errors.New(`service MariaDB Galera Cluster is not bindable. You can create a bindable database on this cluster using cf create-service mariadb-k8s-database default my-mariadb-db -c '{"parent_reference": "1-1-1"}' (correlation-id: "corrid")`),
 		},
 		{
-			name: "creates a mariadb instance and tries to bind it without having endpoint in secret",
-			args: args{
-				ctx:        ctx,
-				instanceID: "1-1-1",
-				bindingID:  "1",
-				details: domain.BindDetails{
-					PlanID:    "1-1",
-					ServiceID: "1",
-				},
-			},
-			resources: func() (func(c client.Client) error, []client.Object) {
-				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
-				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
-				objs := []client.Object{
-					integration.NewTestService("1", crossplane.MariaDBService),
-					servicePlan.Composition,
-					instance,
-					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
-						xrv1.ResourceCredentialsSecretPortKey:     "1234",
-						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-					}),
-				}
-				return func(c client.Client) error {
-					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
-				}, objs
-			},
-			want:    nil,
-			wantErr: errors.New(`finishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation (correlation-id: "corrid")`),
-		},
-		{
 			name: "creates a mariadb instance and binds a database instance to it",
 			args: args{
 				ctx:        ctx,

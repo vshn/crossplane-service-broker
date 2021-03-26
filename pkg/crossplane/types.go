@@ -1,6 +1,8 @@
 package crossplane
 
 import (
+	"fmt"
+
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
@@ -41,7 +43,7 @@ func newPlan(c xv1.Composition) (*Plan, error) {
 	}, nil
 }
 
-// Instance is a wrapper around a specific instance  (a composite).
+// Instance is a wrapper around a specific instance (a composite).
 type Instance struct {
 	Composite *composite.Unstructured
 	Labels    *Labels
@@ -70,9 +72,17 @@ func (i Instance) Parameters() map[string]interface{} {
 	return v
 }
 
-// ResourceRefs returns all referenced resources.
-func (i Instance) ResourceRefs() []corev1.ObjectReference {
-	return i.Composite.GetResourceReferences()
+// ParentReference returns the parent reference
+func (i Instance) ParentReference() (string, error) {
+	return getParentRef(i.Parameters())
+}
+
+func getParentRef(params map[string]interface{}) (string, error) {
+	p, ok := params[instanceParamsParentReferenceName]
+	if !ok {
+		return "", fmt.Errorf("required param %q not found", instanceParamsParentReferenceName)
+	}
+	return p.(string), nil
 }
 
 func newInstance(c *composite.Unstructured) (*Instance, error) {
@@ -84,9 +94,4 @@ func newInstance(c *composite.Unstructured) (*Instance, error) {
 		Composite: c,
 		Labels:    l,
 	}, nil
-}
-
-// MariaDBProvisionAdditionalParams are the required parameters to create a mariadb database instance.
-type MariaDBProvisionAdditionalParams struct {
-	ParentReference string `json:"parent_reference"`
 }

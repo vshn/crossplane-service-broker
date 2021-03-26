@@ -46,33 +46,36 @@ var (
 
 // MariadbDatabaseServiceBinder defines a specific Mariadb service with enough data to retrieve connection credentials.
 type MariadbDatabaseServiceBinder struct {
-	id     string
-	params map[string]interface{}
-	cp     *Crossplane
-	logger lager.Logger
+	serviceBinder
 }
 
 // NewMariadbDatabaseServiceBinder instantiates a Mariadb service instance based on the given CompositeMariadbInstance.
-func NewMariadbDatabaseServiceBinder(c *Crossplane, id string, params map[string]interface{}, logger lager.Logger) *MariadbDatabaseServiceBinder {
+func NewMariadbDatabaseServiceBinder(c *Crossplane, instance *Instance, logger lager.Logger) *MariadbDatabaseServiceBinder {
 	return &MariadbDatabaseServiceBinder{
-		id:     id,
-		params: params,
-		cp:     c,
-		logger: logger,
+		serviceBinder: serviceBinder{
+			instance: instance,
+			cp:       c,
+			logger:   logger,
+		},
 	}
 }
 
 // Bind creates a MariaDB binding composite.
 func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID string) (Credentials, error) {
-	parentRef, err := msb.retrieveDBInstance()
+	parentRef, err := msb.instance.ParentReference()
 	if err != nil {
 		return nil, err
+	}
+
+	cmp := composite.New(composite.WithGroupVersionKind(mariaDBGroupVersionKind))
+	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: parentRef}, cmp); err != nil {
+		return nil, fmt.Errorf("could not get parent Galera cluster: %w", err)
 	}
 
 	pw, err := msb.createBinding(
 		ctx,
 		bindingID,
-		msb.id,
+		msb.instance.ID(),
 		parentRef,
 	)
 	if err != nil {
@@ -80,7 +83,7 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 	}
 
 	// In order to directly return the credentials we need to get the IP/port for this instance.
-	secret, err := msb.cp.getCredentials(ctx, parentRef)
+	secret, err := msb.cp.GetConnectionDetails(ctx, cmp)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			err = ErrInstanceNotReady
@@ -93,7 +96,7 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 		return nil, err
 	}
 
-	creds := createCredentials(endpoint, bindingID, pw, msb.id)
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID())
 
 	return creds, nil
 }
@@ -109,6 +112,7 @@ func (msb MariadbDatabaseServiceBinder) Unbind(ctx context.Context, bindingID st
 	// TODO: figure out a better way to delete the password secret
 	//       option a) use Watch on resourceRefs of composite and wait until User/Grant are both deleted
 	//       option b) https://github.com/crossplane/crossplane/issues/1612 is implemented by crossplane
+	//                 and wait for the composite to disappear before removing the secret
 	// If we delete the secret too quickly, the provider-sql can't deprovision the user
 	time.Sleep(5 * time.Second)
 	secret := &corev1.Secret{
@@ -127,7 +131,14 @@ func (msb MariadbDatabaseServiceBinder) Deprovisionable(_ context.Context) error
 
 // GetBinding returns credentials for MariaDB
 func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingID string) (Credentials, error) {
-	secret, err := msb.cp.getCredentials(ctx, bindingID)
+	cmp := composite.New(composite.WithGroupVersionKind(mariaDBUserGroupVersionKind))
+	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: bindingID}, cmp); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, apiresponses.ErrBindingNotFound
+		}
+		return nil, fmt.Errorf("could not get binding: %w", err)
+	}
+	secret, err := msb.cp.GetConnectionDetails(ctx, cmp)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			err = ErrInstanceNotReady
@@ -141,28 +152,27 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 	}
 
 	pw := string(secret.Data[xrv1.ResourceCredentialsSecretPasswordKey])
-	creds := createCredentials(endpoint, bindingID, pw, msb.id)
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID())
 
 	return creds, nil
 }
 
 // ValidateProvisionParams ensures the passed parent reference is an existing mariadb instance.
 func (msb MariadbDatabaseServiceBinder) ValidateProvisionParams(ctx context.Context, params json.RawMessage) (map[string]interface{}, error) {
-	p := MariaDBProvisionAdditionalParams{}
-	if err := json.Unmarshal(params, &p); err != nil {
+	paramsMap := map[string]interface{}{}
+	if err := json.Unmarshal(params, &paramsMap); err != nil {
 		return nil, err
 	}
-	if p.ParentReference == "" {
-		return nil, fmt.Errorf("%q required", instanceParamsParentReferenceName)
+	parentRef, err := getParentRef(paramsMap)
+	if err != nil {
+		return nil, err
 	}
 
 	cmp := composite.New(composite.WithGroupVersionKind(mariaDBGroupVersionKind))
-	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: p.ParentReference}, cmp); err != nil {
-		return nil, fmt.Errorf("valid %q required: %s", instanceParamsParentReferenceName, err)
+	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: parentRef}, cmp); err != nil {
+		return nil, fmt.Errorf("valid %q required: %w", instanceParamsParentReferenceName, err)
 	}
-	return map[string]interface{}{
-		instanceParamsParentReferenceName: p.ParentReference,
-	}, nil
+	return paramsMap, nil
 }
 
 func (msb MariadbDatabaseServiceBinder) createBinding(ctx context.Context, bindingID, instanceID, parentReference string) (string, error) {
@@ -207,14 +217,6 @@ func (msb MariadbDatabaseServiceBinder) createBinding(ctx context.Context, bindi
 		return "", err
 	}
 	return string(secret.Data[xrv1.ResourceCredentialsSecretPasswordKey]), nil
-}
-
-func (msb MariadbDatabaseServiceBinder) retrieveDBInstance() (string, error) {
-	p, ok := msb.params[instanceParamsParentReferenceName]
-	if !ok {
-		return "", fmt.Errorf("required param %q not found", instanceParamsParentReferenceName)
-	}
-	return p.(string), nil
 }
 
 func mapMariadbEndpoint(data map[string][]byte) (*Endpoint, error) {

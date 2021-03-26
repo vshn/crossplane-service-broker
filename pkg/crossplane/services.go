@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"code.cloudfoundry.org/lager"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // instanceSpecParamsPath is the path to an instance's parameters
@@ -54,12 +53,6 @@ type ServiceBinder interface {
 	GetBinding(ctx context.Context, bindingID string) (Credentials, error)
 }
 
-// FinishProvisioner is not currently implemented as provider-helm upgrade is TBD and we need to adjust endpoint retrieval anyway.
-// FIXME(mw): determine fate of this interface
-type FinishProvisioner interface {
-	FinishProvision(ctx context.Context) error
-}
-
 // ProvisionValidater enables service implementations to check required additional params.
 type ProvisionValidater interface {
 	// ValidateProvisionParams can be used to check the params for validity. If valid, it should return all needed parameters
@@ -69,24 +62,20 @@ type ProvisionValidater interface {
 
 // ServiceBinderFactory reads the composite's labels service name and instantiates an appropriate ServiceBinder.
 // FIXME(mw): determine fate of this. We might not need differentiation anymore, once provider-helm is upgraded.
-func ServiceBinderFactory(c *Crossplane, serviceName ServiceName, id string, resourceRefs []corev1.ObjectReference, params map[string]interface{}, logger lager.Logger) (ServiceBinder, error) {
+func ServiceBinderFactory(c *Crossplane, serviceName ServiceName, instance *Instance, logger lager.Logger) (ServiceBinder, error) {
 	switch serviceName {
 	case RedisService:
-		return NewRedisServiceBinder(c, id, resourceRefs, logger), nil
+		return NewRedisServiceBinder(c, instance, logger), nil
 	case MariaDBService:
-		return NewMariadbServiceBinder(c, id, logger), nil
+		return NewMariadbServiceBinder(c, instance, logger), nil
 	case MariaDBDatabaseService:
-		return NewMariadbDatabaseServiceBinder(c, id, params, logger), nil
+		return NewMariadbDatabaseServiceBinder(c, instance, logger), nil
 	}
 	return nil, fmt.Errorf("service binder %q not implemented", serviceName)
 }
 
-func findResourceRefs(refs []corev1.ObjectReference, kind string) []corev1.ObjectReference {
-	s := make([]corev1.ObjectReference, 0)
-	for _, ref := range refs {
-		if ref.Kind == kind {
-			s = append(s, ref)
-		}
-	}
-	return s
+type serviceBinder struct {
+	instance *Instance
+	cp       *Crossplane
+	logger   lager.Logger
 }

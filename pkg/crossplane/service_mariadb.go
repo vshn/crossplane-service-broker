@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"code.cloudfoundry.org/lager"
-	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -33,17 +32,17 @@ var (
 
 // MariadbServiceBinder defines a specific Mariadb service with enough data to retrieve connection credentials.
 type MariadbServiceBinder struct {
-	id     string
-	cp     *Crossplane
-	logger lager.Logger
+	serviceBinder
 }
 
 // NewMariadbServiceBinder instantiates a Mariadb service instance based on the given CompositeMariadbInstance.
-func NewMariadbServiceBinder(c *Crossplane, id string, logger lager.Logger) *MariadbServiceBinder {
+func NewMariadbServiceBinder(c *Crossplane, instance *Instance, logger lager.Logger) *MariadbServiceBinder {
 	return &MariadbServiceBinder{
-		id:     id,
-		cp:     c,
-		logger: logger,
+		serviceBinder: serviceBinder{
+			instance: instance,
+			cp:       c,
+			logger:   logger,
+		},
 	}
 }
 
@@ -52,7 +51,7 @@ func (msb MariadbServiceBinder) Bind(_ context.Context, _ string) (Credentials, 
 	return nil, apiresponses.NewFailureResponseBuilder(
 		fmt.Errorf("service MariaDB Galera Cluster is not bindable. "+
 			"You can create a bindable database on this cluster using "+
-			"cf create-service mariadb-k8s-database default my-mariadb-db -c '{\"%s\": %q}'", instanceParamsParentReferenceName, msb.id),
+			"cf create-service mariadb-k8s-database default my-mariadb-db -c '{\"%s\": %q}'", instanceParamsParentReferenceName, msb.instance.ID()),
 		http.StatusUnprocessableEntity,
 		"binding-not-supported",
 	).WithErrorKey("BindingNotSupported").Build()
@@ -68,7 +67,7 @@ func (msb MariadbServiceBinder) Deprovisionable(ctx context.Context) error {
 	instanceList := &unstructured.UnstructuredList{}
 	instanceList.SetGroupVersionKind(mariaDBDatabaseGroupVersionKind)
 	if err := msb.cp.client.List(ctx, instanceList, client.MatchingLabels{
-		ParentIDLabel: msb.id,
+		ParentIDLabel: msb.instance.ID(),
 	}); err != nil {
 		return err
 	}
@@ -89,20 +88,4 @@ func (msb MariadbServiceBinder) Deprovisionable(ctx context.Context) error {
 // GetBinding is not implemented.
 func (msb MariadbServiceBinder) GetBinding(_ context.Context, _ string) (Credentials, error) {
 	return nil, errNotImplemented
-}
-
-// FinishProvision is called after a successful provisioning
-// FIXME(mw): FinishProvision might be needed, but probably not.
-func (msb MariadbServiceBinder) FinishProvision(ctx context.Context) error {
-	s, err := msb.cp.getCredentials(ctx, msb.id)
-	if err != nil {
-		return err
-	}
-
-	// having an endpoint in the secret means fetching the endpoint via HaProxy
-	// has been successfully implemented using provider-helm.
-	if s.Data[xrv1.ResourceCredentialsSecretEndpointKey] != nil {
-		return nil
-	}
-	return errors.New("finishProvision deactivated until proper solution in place. Retrieving Endpoint needs implementation")
 }
