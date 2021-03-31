@@ -22,7 +22,6 @@ import (
 	cgscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
 )
@@ -32,7 +31,7 @@ var errInstanceNotFound = errors.New("instance not found")
 
 // Crossplane client to access crossplane resources.
 type Crossplane struct {
-	client     k8sclient.Client
+	client     client.Client
 	serviceIDs []string
 	namespace  string
 }
@@ -65,7 +64,7 @@ func New(serviceIDs []string, namespace string, config *rest.Config) (*Crossplan
 	}
 
 	// TODO(mw): feels a little unnecessary to use controller-runtime just for this. Should we extract the code we need?
-	k, err := k8sclient.New(config, k8sclient.Options{
+	k, err := client.New(config, client.Options{
 		Scheme: scheme,
 	})
 	if err != nil {
@@ -136,6 +135,9 @@ func (cp Crossplane) Plans(rctx *reqcontext.ReqContext, serviceIDs []string) ([]
 	err = cp.client.List(rctx.Context, compositions, client.MatchingLabelsSelector{
 		Selector: labels.NewSelector().Add(*req),
 	})
+	if err != nil {
+		return nil, err
+	}
 	sort.Slice(compositions.Items, func(i, j int) bool {
 		return compositions.Items[i].Labels[PlanNameLabel] < compositions.Items[j].Labels[PlanNameLabel]
 	})
@@ -172,6 +174,9 @@ func (cp Crossplane) Plan(rctx *reqcontext.ReqContext, planID string) (*Plan, er
 //            can we speak about having no instance with that name? It's a UUID after all.
 func (cp Crossplane) Instance(rctx *reqcontext.ReqContext, id string, plan *Plan) (inst *Instance, ok bool, err error) {
 	gvk, err := plan.GVK()
+	if err != nil {
+		return nil, false, err
+	}
 
 	cmp := composite.New(composite.WithGroupVersionKind(gvk))
 	cmp.SetName(id)
@@ -282,13 +287,22 @@ func (cp *Crossplane) DeleteInstance(rctx *reqcontext.ReqContext, instanceName s
 	return cp.client.Delete(rctx.Context, cmp)
 }
 
-func (cp *Crossplane) getCredentials(ctx context.Context, name string) (*corev1.Secret, error) {
-	secretRef := types.NamespacedName{
-		Namespace: cp.namespace,
-		Name:      name,
+// GetConnectionDetails returns the connection details of an instance
+func (cp *Crossplane) GetConnectionDetails(ctx context.Context, instance *composite.Unstructured) (*corev1.Secret, error) {
+	if instance == nil {
+		return nil, fmt.Errorf("composite is nil")
 	}
+	secretRef := instance.GetWriteConnectionSecretToReference()
+
+	if secretRef == nil {
+		return nil, fmt.Errorf("instance doesn't contain secret ref %q", instance.GetName())
+	}
+
 	s := &corev1.Secret{}
-	if err := cp.client.Get(ctx, secretRef, s); err != nil {
+	if err := cp.client.Get(ctx, types.NamespacedName{
+		Name:      secretRef.Name,
+		Namespace: secretRef.Namespace,
+	}, s); err != nil {
 		return nil, fmt.Errorf("unable to get secret: %w", err)
 	}
 	if s.Data == nil {

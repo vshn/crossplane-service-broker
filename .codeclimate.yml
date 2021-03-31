@@ -9,6 +9,9 @@ plugins:
     enabled: true
   golint:
     enabled: true
+checks:
+  return-statements:
+    enabled: false
 exclude_patterns:
   - "testdata/"
   - "**/vendor/"

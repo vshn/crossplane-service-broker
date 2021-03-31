@@ -185,6 +185,10 @@ func NewTestInstance(instanceID string, plan *crossplane.Plan, serviceName cross
 			Name:       instanceID,
 		},
 	})
+	cmp.SetWriteConnectionSecretToReference(&xrv1.SecretReference{
+		Name:      instanceID,
+		Namespace: TestNamespace,
+	})
 
 	return cmp
 }
