@@ -10,6 +10,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
+	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	"github.com/pivotal-cf/brokerapi/v7/middlewares"
@@ -255,6 +256,29 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 			},
 			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
 			wantErr: nil,
+		},
+		{
+			name: "creates a mariadb database instance referencing inexistent parent",
+			args: args{
+				ctx:        ctx,
+				instanceID: "3",
+				details: domain.ProvisionDetails{
+					PlanID:        "2-1",
+					ServiceID:     "2",
+					RawParameters: json.RawMessage(`{"parent_reference": "non-existent"}`),
+				},
+				asyncAllowed: true,
+			},
+			resources: func() []client.Object {
+				return []client.Object{
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService).Composition,
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
+					integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService).Composition,
+				}
+			},
+			want:    nil,
+			wantErr: errors.New(`valid "parent_reference" required: compositemariadbinstances.syn.tools "non-existent" not found (correlation-id: "corrid")`),
 		},
 	}
 
@@ -561,12 +585,227 @@ func (ts *EnvTestSuite) TestBrokerAPI_LastOperation() {
 	}
 }
 
+func (ts *EnvTestSuite) TestBrokerAPI_LastBindingOperation() {
+	type args struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+		details    domain.PollDetails
+	}
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
+
+	tests := []struct {
+		name      string
+		args      args
+		want      *domain.LastOperation
+		wantErr   error
+		resources func() (func(c client.Client) error, []client.Object)
+	}{
+		{
+			name: "inexistent redis binding fails",
+			args: args{
+				ctx:        ctx,
+				instanceID: "inexistent-name",
+				bindingID:  "binding-1",
+				details: domain.PollDetails{
+					PlanID: "1-1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				service := integration.NewTestService("1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+
+				instance := integration.NewTestInstance("instance-1", servicePlan, crossplane.RedisService, "", "")
+				objs := []client.Object{
+					service,
+					servicePlan.Composition,
+					instance,
+					integration.NewTestSecret(integration.TestNamespace, "instance-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"sentinelPort": "21234",
+					}),
+				}
+				return func(c client.Client) error {
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want:    nil,
+			wantErr: apiresponses.ErrInstanceDoesNotExist.AppendErrorMessage(`(correlation-id: "corrid")`),
+		},
+		{
+			name: "redis binding returns succeeded",
+			args: args{
+				ctx:        ctx,
+				instanceID: "instance-1",
+				bindingID:  "binding-1",
+				details: domain.PollDetails{
+					PlanID: "1-1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				service := integration.NewTestService("1", crossplane.RedisService)
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+
+				instance := integration.NewTestInstance("instance-1", servicePlan, crossplane.RedisService, "", "")
+				objs := []client.Object{
+					service,
+					servicePlan.Composition,
+					instance,
+					integration.NewTestSecret(integration.TestNamespace, "instance-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"sentinelPort": "21234",
+					}),
+				}
+				return func(c client.Client) error {
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want: &domain.LastOperation{
+				State: domain.Succeeded,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "Unready MariaDB binding returns in progress",
+			args: args{
+				ctx:        ctx,
+				instanceID: "instance-1",
+				bindingID:  "binding-1",
+				details: domain.PollDetails{
+					PlanID: "2-1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				dbServicePlan := integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
+					servicePlan.Composition,
+					integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", ""),
+					dbServicePlan.Composition,
+					integration.NewTestInstance("instance-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1"),
+					integration.NewTestMariaDBUserInstance("instance-1", "binding-1"),
+				}
+				return nil, objs
+			},
+			want: &domain.LastOperation{
+				State: domain.InProgress,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "Ready MariaDB binding returns ready",
+			args: args{
+				ctx:        ctx,
+				instanceID: "instance-1",
+				bindingID:  "binding-1",
+				details: domain.PollDetails{
+					PlanID: "2-1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				dbServicePlan := integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				userInstance := integration.NewTestMariaDBUserInstance("instance-1", "binding-1")
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
+					servicePlan.Composition,
+					integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", ""),
+					dbServicePlan.Composition,
+					integration.NewTestInstance("instance-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1"),
+					userInstance,
+					integration.NewTestSecret(integration.TestNamespace, "binding-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+					}),
+				}
+				return func(c client.Client) error {
+					userPlan := &crossplane.Plan{
+						Composition: &xv1.Composition{
+							Spec: xv1.CompositionSpec{
+								CompositeTypeRef: xv1.TypeReference{
+									APIVersion: "syn.tools/v1alpha1",
+									Kind:       "CompositeMariaDBUserInstance",
+								},
+							},
+						},
+					}
+					return integration.UpdateInstanceConditions(ctx, c, userPlan, userInstance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want: &domain.LastOperation{
+				State: domain.Succeeded,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "inexistent MariaDB binding returns failed",
+			args: args{
+				ctx:        ctx,
+				instanceID: "instance-1",
+				bindingID:  "inexistent-binding",
+				details: domain.PollDetails{
+					PlanID: "2-1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				dbServicePlan := integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
+					servicePlan.Composition,
+					integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", ""),
+					dbServicePlan.Composition,
+					integration.NewTestInstance("instance-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1"),
+					integration.NewTestMariaDBUserInstance("instance-1", "binding-1"),
+				}
+				return nil, objs
+			},
+			want:    nil,
+			wantErr: apiresponses.ErrBindingDoesNotExist.AppendErrorMessage(`(correlation-id: "corrid")`),
+		},
+	}
+	bAPI := New(ts.Crossplane, ts.Logger)
+
+	for _, tt := range tests {
+		ts.Run(tt.name, func() {
+			fn, objs := tt.resources()
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
+			if fn != nil {
+				ts.Require().NoError(fn(ts.Manager.GetClient()))
+			}
+
+			defer func() {
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
+			}()
+
+			got, err := bAPI.LastBindingOperation(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details)
+			if tt.wantErr != nil {
+				ts.Assert().EqualError(err, tt.wantErr.Error())
+				return
+			}
+
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
+		})
+	}
+}
+
 func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 	type args struct {
 		ctx        context.Context
 		instanceID string
 		bindingID  string
 		details    domain.BindDetails
+		async      bool
 	}
 	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
@@ -651,6 +890,40 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 				},
 			},
 			wantComparisonFunc: assert.Equal,
+			wantErr:            nil,
+		},
+		{
+			name: "creates a redis instance and binds it asynchronously",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				async:      true,
+				details: domain.BindDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					servicePlan.Composition,
+					instance,
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"sentinelPort": "21234",
+					}),
+				}
+				return func(c client.Client) error {
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want:               nil,
+			wantComparisonFunc: nil,
 			wantErr:            nil,
 		},
 		{
@@ -809,6 +1082,47 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 			},
 			wantErr: nil,
 		},
+		{
+			name: "creates a mariadb instance and binds a database instance to it asynchronously",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-2-1",
+				bindingID:  "3",
+				async:      true,
+				details: domain.BindDetails{
+					PlanID:    "2-1",
+					ServiceID: "2",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				dbServicePlan := integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				dbInstance := integration.NewTestInstance("1-2-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1")
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
+					servicePlan.Composition,
+					instance,
+					dbServicePlan.Composition,
+					dbInstance,
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+					}),
+				}
+				return func(c client.Client) error {
+					if err := integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable); err != nil {
+						return err
+					}
+					return integration.UpdateInstanceConditions(ctx, c, dbServicePlan, dbInstance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want:               nil,
+			wantComparisonFunc: nil,
+			wantErr:            nil,
+		},
 	}
 
 	bAPI := New(ts.Crossplane, ts.Logger)
@@ -824,14 +1138,17 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
-			got, err := bAPI.Bind(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details, false)
+			got, err := bAPI.Bind(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details, tt.args.async)
 			if tt.wantErr != nil {
 				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
 			}
 
 			ts.Assert().NoError(err)
-			tt.wantComparisonFunc(ts.T(), *tt.want, got)
+			ts.Assert().Equal(got.IsAsync, tt.args.async)
+			if tt.wantComparisonFunc != nil && tt.want != nil {
+				tt.wantComparisonFunc(ts.T(), *tt.want, got)
+			}
 		})
 	}
 }
@@ -869,6 +1186,34 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 			},
 			want:    nil,
 			wantErr: errors.New(`instance is being updated and cannot be retrieved (correlation-id: "corrid")`),
+		},
+		{
+			name: "requires secret to be ready before getting a binding",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					servicePlan.Composition,
+					instance,
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"sentinelPort": "21234",
+					}),
+				}
+				return func(c client.Client) error {
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want:    nil,
+			wantErr: apiresponses.ErrBindingNotFound.AppendErrorMessage(`(correlation-id: "corrid")`),
 		},
 		{
 			name: "creates a redis instance and gets the binding",

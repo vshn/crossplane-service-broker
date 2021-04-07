@@ -145,9 +145,9 @@ func (b Broker) Deprovision(rctx *reqcontext.ReqContext, instanceID, planID stri
 }
 
 // Bind creates a binding between a provisioned service instance and an application.
-func (b Broker) Bind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID string) (domain.Binding, error) {
+func (b Broker) Bind(rctx *reqcontext.ReqContext, instanceID, bindingID, planID string, asyncAllowed bool) (domain.Binding, error) {
 	res := domain.Binding{
-		IsAsync: false,
+		IsAsync: asyncAllowed,
 	}
 
 	_, instance, err := b.getPlanInstance(rctx, planID, instanceID)
@@ -230,6 +230,42 @@ func (b Broker) LastOperation(rctx *reqcontext.ReqContext, instanceID, planID st
 		res.State = domain.Failed
 	}
 	return res, nil
+}
+
+// LastBindingOperation retrieves a binding's status.
+func (b Broker) LastBindingOperation(rctx *reqcontext.ReqContext, instanceID, planID, bindingID string) (domain.LastOperation, error) {
+	res := domain.LastOperation{}
+
+	_, instance, err := b.getPlanInstance(rctx, planID, instanceID)
+	if err != nil {
+		return res, err
+	}
+
+	sb, err := crossplane.ServiceBinderFactory(b.cp, instance.Labels.ServiceName, instance, rctx.Logger)
+	if err != nil {
+		return res, err
+	}
+
+	_, err = sb.GetBinding(rctx.Context, bindingID)
+	if errors.Is(err, crossplane.ErrBindingNotReady) {
+		return domain.LastOperation{
+			State: domain.InProgress,
+		}, nil
+	}
+	if err != nil {
+		var apiErr *apiresponses.FailureResponse
+		if errors.As(err, &apiErr) {
+			return res, apiErr
+		}
+		return domain.LastOperation{
+			State:       domain.Failed,
+			Description: err.Error(),
+		}, nil
+	}
+
+	return domain.LastOperation{
+		State: domain.Succeeded,
+	}, nil
 }
 
 // GetBinding retrieves a binding to get credentials.

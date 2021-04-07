@@ -12,8 +12,12 @@ import (
 // instanceSpecParamsPath is the path to an instance's parameters
 const instanceSpecParamsPath = "spec.parameters"
 
-// ErrInstanceNotReady is returned if credentials are fetched for an instance which is still provisioning.
-var ErrInstanceNotReady = errors.New("instance not ready")
+var (
+	// ErrInstanceNotReady is returned if credentials are fetched for an instance which is still provisioning.
+	ErrInstanceNotReady = errors.New("instance not ready")
+	// ErrBindingNotReady is returned if the binding is still being provisioned.
+	ErrBindingNotReady = errors.New("binding not ready")
+)
 
 // Credentials contain connection information for accessing a service.
 type Credentials map[string]interface{}
