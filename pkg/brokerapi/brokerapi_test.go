@@ -11,6 +11,7 @@ import (
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/pivotal-cf/brokerapi/v7/domain"
+	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	"github.com/pivotal-cf/brokerapi/v7/middlewares"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -1291,6 +1292,31 @@ func (ts *EnvTestSuite) TestBrokerAPI_Unbind() {
 			},
 			want:    nil,
 			wantErr: errors.New(`instance is being updated and cannot be retrieved (correlation-id: "corrid")`),
+		},
+		{
+			name: "unbind inexistent binding",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UnbindDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
+				objs := []client.Object{
+					servicePlan.Composition,
+					instance,
+				}
+				return func(c client.Client) error {
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want:    nil,
+			wantErr: apiresponses.ErrBindingDoesNotExist.AppendErrorMessage(`(correlation-id: "corrid")`),
 		},
 		{
 			name: "removes a MariaDB user instance",

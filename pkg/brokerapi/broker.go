@@ -10,6 +10,7 @@ import (
 	"github.com/pivotal-cf/brokerapi/v7/domain"
 	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 	"github.com/vshn/crossplane-service-broker/pkg/reqcontext"
@@ -193,6 +194,9 @@ func (b Broker) Unbind(rctx *reqcontext.ReqContext, instanceID, bindingID, planI
 
 	err = sb.Unbind(rctx.Context, bindingID)
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return res, apiresponses.ErrBindingDoesNotExist
+		}
 		return res, err
 	}
 	return res, nil
