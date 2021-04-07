@@ -184,6 +184,11 @@ func APIResponseError(rctx *reqcontext.ReqContext, err error) error {
 		return nil
 	}
 
+	var apiErr *apiresponses.FailureResponse
+	if errors.As(err, &apiErr) {
+		return apiErr.AppendErrorMessage(fmt.Sprintf("(correlation-id: %q)", rctx.CorrelationID))
+	}
+
 	var kErr *k8serrors.StatusError
 	if errors.As(err, &kErr) {
 		err = apiresponses.NewFailureResponseBuilder(
@@ -191,11 +196,6 @@ func APIResponseError(rctx *reqcontext.ReqContext, err error) error {
 			int(kErr.ErrStatus.Code),
 			"invalid",
 		).WithErrorKey(string(kErr.ErrStatus.Reason)).Build()
-	}
-
-	var apiErr *apiresponses.FailureResponse
-	if errors.As(err, &apiErr) {
-		return apiErr.AppendErrorMessage(fmt.Sprintf("(correlation-id: %q)", rctx.CorrelationID))
 	}
 
 	return apiresponses.NewFailureResponseBuilder(
