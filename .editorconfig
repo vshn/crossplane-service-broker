@@ -19,3 +19,4 @@ indent_style = tab
 
 [{*.go, go.mod, *.bats}]
 indent_style = tab
+indent_size = 4
