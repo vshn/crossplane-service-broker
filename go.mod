@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/crossplane/crossplane v1.1.0
+	github.com/crossplane/crossplane v1.1.1
 	github.com/crossplane/crossplane-runtime v0.13.0
 	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/go-logr/zapr v0.4.0
