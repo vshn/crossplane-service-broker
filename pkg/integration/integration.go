@@ -218,6 +218,10 @@ func NewTestMariaDBUserInstance(instanceID, bindingID string) *composite.Unstruc
 			"parent_reference": instanceID,
 		},
 	}
+	cmp.SetWriteConnectionSecretToReference(&xrv1.SecretReference{
+		Name:      bindingID,
+		Namespace: TestNamespace,
+	})
 
 	return cmp
 }

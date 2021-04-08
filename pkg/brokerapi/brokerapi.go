@@ -130,7 +130,7 @@ func (b BrokerAPI) Bind(ctx context.Context, instanceID, bindingID string, detai
 	})
 	rctx.Logger.Info("bind-instance")
 
-	res, err := b.broker.Bind(rctx, instanceID, bindingID, details.PlanID)
+	res, err := b.broker.Bind(rctx, instanceID, bindingID, details.PlanID, asyncAllowed)
 	return res, APIResponseError(rctx, err)
 }
 
@@ -174,8 +174,8 @@ func (b BrokerAPI) LastBindingOperation(ctx context.Context, instanceID, binding
 	})
 	rctx.Logger.Info("last-binding-operation")
 
-	res := domain.LastOperation{}
-	return res, APIResponseError(rctx, errors.New("not implemented"))
+	res, err := b.broker.LastBindingOperation(rctx, instanceID, details.PlanID, bindingID)
+	return res, APIResponseError(rctx, err)
 }
 
 // APIResponseError converts an error to a proper API error

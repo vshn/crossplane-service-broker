@@ -86,7 +86,7 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 	secret, err := msb.cp.GetConnectionDetails(ctx, cmp)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			err = ErrInstanceNotReady
+			return nil, ErrInstanceNotReady
 		}
 		return nil, err
 	}
@@ -134,14 +134,18 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 	cmp := composite.New(composite.WithGroupVersionKind(mariaDBUserGroupVersionKind))
 	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: bindingID}, cmp); err != nil {
 		if k8serrors.IsNotFound(err) {
-			return nil, apiresponses.ErrBindingNotFound
+			return nil, apiresponses.ErrBindingDoesNotExist
 		}
 		return nil, fmt.Errorf("could not get binding: %w", err)
+	}
+
+	if cmp.GetCondition(xrv1.TypeReady).Status != corev1.ConditionTrue {
+		return nil, ErrBindingNotReady
 	}
 	secret, err := msb.cp.GetConnectionDetails(ctx, cmp)
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			err = ErrInstanceNotReady
+			return nil, ErrBindingNotReady
 		}
 		return nil, err
 	}
