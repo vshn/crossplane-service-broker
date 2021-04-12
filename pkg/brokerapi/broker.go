@@ -7,8 +7,8 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/pivotal-cf/brokerapi/v7/domain"
-	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -269,10 +269,10 @@ func (b Broker) LastBindingOperation(rctx *reqcontext.ReqContext, instanceID, pl
 }
 
 // GetBinding retrieves a binding to get credentials.
-func (b Broker) GetBinding(rctx *reqcontext.ReqContext, instanceID, bindingID string) (domain.GetBindingSpec, error) {
+func (b Broker) GetBinding(rctx *reqcontext.ReqContext, instanceID, bindingID string, details domain.FetchBindingDetails) (domain.GetBindingSpec, error) {
 	res := domain.GetBindingSpec{}
 
-	_, instance, err := b.getPlanInstance(rctx, "", instanceID)
+	_, instance, err := b.getPlanInstance(rctx, details.PlanID, instanceID)
 	if err != nil {
 		return res, err
 	}
@@ -296,10 +296,10 @@ func (b Broker) GetBinding(rctx *reqcontext.ReqContext, instanceID, bindingID st
 }
 
 // GetInstance gets a provisioned instance.
-func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string) (domain.GetInstanceDetailsSpec, error) {
+func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string, details domain.FetchInstanceDetails) (domain.GetInstanceDetailsSpec, error) {
 	res := domain.GetInstanceDetailsSpec{}
 
-	p, instance, err := b.getPlanInstance(rctx, "", instanceID)
+	p, instance, err := b.getPlanInstance(rctx, details.PlanID, instanceID)
 	if err != nil {
 		return res, err
 	}

@@ -7,7 +7,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 )
 
 // RedisServiceBinder defines a specific redis service with enough data to retrieve connection credentials.

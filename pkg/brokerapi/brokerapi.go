@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/pivotal-cf/brokerapi/v7/domain"
-	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
@@ -73,13 +73,13 @@ func (b BrokerAPI) Deprovision(ctx context.Context, instanceID string, details d
 
 // GetInstance fetches information about a service instance
 //   GET /v2/service_instances/{instance_id}
-func (b BrokerAPI) GetInstance(ctx context.Context, instanceID string) (domain.GetInstanceDetailsSpec, error) {
+func (b BrokerAPI) GetInstance(ctx context.Context, instanceID string, details domain.FetchInstanceDetails) (domain.GetInstanceDetailsSpec, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
 	})
 	rctx.Logger.Info("get-instance")
 
-	res, err := b.broker.GetInstance(rctx, instanceID)
+	res, err := b.broker.GetInstance(rctx, instanceID, details)
 	return res, APIResponseError(rctx, err)
 }
 
@@ -152,14 +152,14 @@ func (b BrokerAPI) Unbind(ctx context.Context, instanceID, bindingID string, det
 // GetBinding fetches an existing service binding
 //   GET /v2/service_instances/{instance_id}/service_bindings/{binding_id}
 // TODO(mw): adjust to use details.PlanID when https://github.com/pivotal-cf/brokerapi/pull/138 is merged.
-func (b BrokerAPI) GetBinding(ctx context.Context, instanceID, bindingID string) (domain.GetBindingSpec, error) {
+func (b BrokerAPI) GetBinding(ctx context.Context, instanceID, bindingID string, details domain.FetchBindingDetails) (domain.GetBindingSpec, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
 		"binding-id":  bindingID,
 	})
 	rctx.Logger.Info("get-binding")
 
-	res, err := b.broker.GetBinding(rctx, instanceID, bindingID)
+	res, err := b.broker.GetBinding(rctx, instanceID, bindingID, details)
 	return res, APIResponseError(rctx, err)
 }
 
