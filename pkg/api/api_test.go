@@ -15,6 +15,7 @@ import (
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/pivotal-cf/brokerapi/v8/fakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/vshn/crossplane-service-broker/pkg/api/auth"
 )
 
 const (
@@ -25,7 +26,7 @@ const (
 func setupServer() (*API, *fakes.AutoFakeServiceBroker) {
 	fakeServiceBroker := &fakes.AutoFakeServiceBroker{}
 
-	a := New(fakeServiceBroker, username, password, lager.NewLogger("test"))
+	a := New(fakeServiceBroker, auth.SingleCredential(username, password), nil, lager.NewLogger("test"))
 	return a, fakeServiceBroker
 }
 

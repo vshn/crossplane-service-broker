@@ -1,3 +1,78 @@
 = Crossplane Service Broker
 
 An https://github.com/openservicebrokerapi/servicebroker[Open Service Broker] implementation using https://crossplane.io[Crossplane] for provisioning of Redis & MariaDB services.
+
+== Settings
+
+NOTE: The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and
+"OPTIONAL" in this section are to be interpreted as described in
+https://tools.ietf.org/html/rfc2119[RFC 2119].
+
+|===
+|Environment Variable |Description |Default |Example
+
+|`KUBECONFIG`
+|Used to read the credentials and information to connect to Kubernetes.
+|`~/.kube/config`
+|`/etc/osb/kubeconfig`
+
+|`OSB_SERVICE_IDS`
+|Comma-separated list (no whitespace after comma!) of service ids available in your cluster.
+|_MUST be provided, no default value is defined._
+|`d7bb595e-abb4-49a6-97b3-a52c67150a34,5ba16ba2-7f07-4412-8fd2-0e9ac7acc831`
+
+|`OBS_USERNAME`
+|Username to connect to the service broker.
+ Used for to authenticate all HTTP requests except to `/health`, `/metrics` and except if a https://tools.ietf.org/html/rfc7519[JWT] https://tools.ietf.org/html/rfc6750[`Bearer` token] is presented.
+|_MUST be provided, no default value is defined._
+|`service-catalogue`
+
+|`OSB_PASSWORD`
+|Password to connect to the service broker.
+Used for to authenticate all HTTP requests except to `/health`, `/metrics` and except if a `Bearer` token is presented.
+|_MUST be provided, no default value is defined._
+|https://www.random.org/strings/?num=2&len=20&digits=on&upperalpha=on&loweralpha=on&unique=on&format=plain&rnd=new[Random String]
+
+|`OSB_NAMESPACE`
+|Which namespace the service broker shall use to create the resources.
+|_MUST be provided, no default_
+|`crossplane-service-broker`
+
+|`OSB_HTTP_LISTEN_ADDR`
+|Which port to listen on
+|`:8080`
+|`:8000`
+
+|`OSB_HTTP_READ_TIMEOUT`
+|How long to wait before closing the connection when retrieving data during HTTP requests.
+Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+|`3m`
+|`30s`
+
+|`OSB_HTTP_WRITE_TIMEOUT`
+|How long to wait before closing the connection when sending data during HTTP requests.
+Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+|`3m`
+|`30s`
+
+|`OSB_HTTP_MAX_HEADER_BYTES`
+|How many bytes in an HTTP header are consumed before closing the connection.
+|`1048576` (i.e. ~1 MB)
+|
+
+|`OSB_JWT_KEYS_JWK_PATH`
+|A path to a https://tools.ietf.org/html/rfc7517[JWK file] that contains keys to verify the signature of https://tools.ietf.org/html/rfc7519[JWT tokens].
+Tokens with valid signatures are permitted access to the service broker API.
+|_RECOMMENDED when using JWT Bearer tokens. No default value is defined._
+|`/etc/osb/jwk.json`
+
+|`OSB_JWT_KEYS_PEM_PATH`
+|A path to a https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail[PEM file] that contains keys to verify the signature of https://tools.ietf.org/html/rfc7519[JWT tokens].
+Tokens with valid signatures are permitted access to the service broker API.
+More than one key may be present in the file.
+**The keys MUST NOT be encrypted.**
+HMAC Secrets can only be defined in JWK files and are not supported in PEM files.
+|_NOT RECOMMENDED, use JWK keys instead. No default value is defined._
+|`/etc/osb/certs.pem`
+|===

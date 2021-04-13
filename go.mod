@@ -9,7 +9,9 @@ require (
 	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/go-logr/zapr v0.4.0
 	github.com/gorilla/mux v1.8.0
+	github.com/pascaldekloe/jwt v1.10.0
 	github.com/pivotal-cf/brokerapi/v8 v8.0.0
+	github.com/prometheus/client_golang v1.7.1
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/zap v1.16.0
 	k8s.io/api v0.20.1
