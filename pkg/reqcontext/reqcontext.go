@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/pivotal-cf/brokerapi/v7/middlewares"
+	"github.com/pivotal-cf/brokerapi/v8/middlewares"
 )
 
 // ReqContext provides a simple struct to contain required request scoped context. In doing so we avoid

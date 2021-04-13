@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/pivotal-cf/brokerapi/v7/domain"
-	"github.com/pivotal-cf/brokerapi/v7/fakes"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/fakes"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"code.cloudfoundry.org/lager"
-	"github.com/pivotal-cf/brokerapi/v7/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"k8s.io/utils/pointer"
 
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"

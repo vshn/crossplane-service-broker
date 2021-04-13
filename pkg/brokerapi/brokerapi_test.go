@@ -11,9 +11,9 @@ import (
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
-	"github.com/pivotal-cf/brokerapi/v7/domain"
-	"github.com/pivotal-cf/brokerapi/v7/domain/apiresponses"
-	"github.com/pivotal-cf/brokerapi/v7/middlewares"
+	"github.com/pivotal-cf/brokerapi/v8/domain"
+	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
+	"github.com/pivotal-cf/brokerapi/v8/middlewares"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
@@ -1158,6 +1158,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 		ctx        context.Context
 		instanceID string
 		bindingID  string
+		planID     string
 	}
 	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
@@ -1174,6 +1175,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 				ctx:        ctx,
 				instanceID: "1-1-1",
 				bindingID:  "1",
+				planID:     "1-1",
 			},
 			resources: func() (func(c client.Client) error, []client.Object) {
 				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
@@ -1193,6 +1195,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 				ctx:        ctx,
 				instanceID: "1-1-1",
 				bindingID:  "1",
+				planID:     "1-1",
 			},
 			resources: func() (func(c client.Client) error, []client.Object) {
 				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
@@ -1221,6 +1224,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 				ctx:        ctx,
 				instanceID: "1-1-1",
 				bindingID:  "1",
+				planID:     "1-1",
 			},
 			resources: func() (func(c client.Client) error, []client.Object) {
 				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
@@ -1278,7 +1282,14 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
-			got, err := bAPI.GetBinding(tt.args.ctx, tt.args.instanceID, tt.args.bindingID)
+			got, err := bAPI.GetBinding(
+				tt.args.ctx,
+				tt.args.instanceID,
+				tt.args.bindingID,
+				domain.FetchBindingDetails{
+					PlanID: tt.args.planID,
+				},
+			)
 			if tt.wantErr != nil {
 				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
@@ -1295,6 +1306,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetInstance() {
 		ctx        context.Context
 		instanceID string
 		bindingID  string
+		planID     string
 	}
 	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
@@ -1311,6 +1323,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetInstance() {
 				ctx:        ctx,
 				instanceID: "1-1-1",
 				bindingID:  "1",
+				planID:     "1-1",
 			},
 			resources: func() (func(c client.Client) error, []client.Object) {
 				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
@@ -1337,6 +1350,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetInstance() {
 				ctx:        ctx,
 				instanceID: "1-1-1",
 				bindingID:  "1",
+				planID:     "1-1",
 			},
 			resources: func() (func(c client.Client) error, []client.Object) {
 				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
@@ -1373,7 +1387,9 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetInstance() {
 				ts.Require().NoError(fn(ts.Manager.GetClient()))
 			}
 
-			got, err := bAPI.GetInstance(tt.args.ctx, tt.args.instanceID)
+			got, err := bAPI.GetInstance(tt.args.ctx, tt.args.instanceID, domain.FetchInstanceDetails{
+				PlanID: tt.args.planID,
+			})
 			if tt.wantErr != nil {
 				ts.Assert().EqualError(err, tt.wantErr.Error())
 				return
