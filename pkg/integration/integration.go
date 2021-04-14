@@ -150,6 +150,8 @@ func kindForService(name crossplane.ServiceName) string {
 		return "CompositeMariaDBInstance"
 	case crossplane.MariaDBDatabaseService:
 		return "CompositeMariaDBDatabaseInstance"
+	case crossplane.FooService:
+		return "CompositeFooInstance"
 	}
 	return "CompositeInstance"
 }
@@ -285,7 +287,7 @@ func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 
 	require.NoError(t, CreateObjects(context.Background(), []client.Object{newTestNamespace(TestNamespace)})(m.GetClient()))
 
-	cp, err := crossplane.New([]string{"1", "2"}, TestNamespace, m.GetConfig())
+	cp, err := crossplane.New([]string{"1", "2", "foo"}, TestNamespace, m.GetConfig())
 	if err != nil {
 		return nil, nil, nil, err
 	}

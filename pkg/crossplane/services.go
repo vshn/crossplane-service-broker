@@ -35,7 +35,7 @@ type ServiceName string
 // IsValid returns true if the ServiceName is one of the defined ones.
 func (s ServiceName) IsValid() bool {
 	switch s {
-	case RedisService, MariaDBService, MariaDBDatabaseService:
+	case RedisService, MariaDBService, MariaDBDatabaseService, FooService:
 		return true
 	}
 	return false
@@ -46,6 +46,7 @@ var (
 	RedisService           ServiceName = "redis-k8s"
 	MariaDBService         ServiceName = "mariadb-k8s"
 	MariaDBDatabaseService ServiceName = "mariadb-k8s-database"
+	FooService             ServiceName = "foo-k8s"
 )
 
 // ServiceBinder is an interface for service specific implementation for binding,
@@ -74,6 +75,8 @@ func ServiceBinderFactory(c *Crossplane, serviceName ServiceName, instance *Inst
 		return NewMariadbServiceBinder(c, instance, logger), nil
 	case MariaDBDatabaseService:
 		return NewMariadbDatabaseServiceBinder(c, instance, logger), nil
+	case FooService:
+		return NewFooServiceBinder(c, instance, logger), nil
 	}
 	return nil, fmt.Errorf("service binder %q not implemented", serviceName)
 }

@@ -63,6 +63,8 @@ func (ts *EnvTestSuite) TestBrokerAPI_Services() {
 				integration.NewTestService("1", crossplane.RedisService),
 				integration.NewTestServicePlan("1", "1-1", crossplane.RedisService).Composition,
 				integration.NewTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
+				integration.NewTestService("foo", crossplane.FooService),
+				integration.NewTestServicePlan("foo", "small", crossplane.FooService).Composition,
 			},
 			want: []domain.Service{
 				{
@@ -87,6 +89,31 @@ func (ts *EnvTestSuite) TestBrokerAPI_Services() {
 						{
 							ID:          "1-2",
 							Name:        "small1-2",
+							Description: "testservice-small plan description",
+							Free:        integration.BoolPtr(false),
+							Bindable:    integration.BoolPtr(false),
+							Metadata: &domain.ServicePlanMetadata{
+								DisplayName: "small",
+							},
+						},
+					},
+					Metadata: &domain.ServiceMetadata{
+						DisplayName: "testservice",
+					},
+					Tags: []string{"foo", "bar", "baz"},
+				},
+				{
+					ID:                   "foo",
+					Name:                 string(crossplane.FooService),
+					Description:          "testservice description",
+					Bindable:             true,
+					InstancesRetrievable: true,
+					BindingsRetrievable:  true,
+					PlanUpdatable:        true,
+					Plans: []domain.ServicePlan{
+						{
+							ID:          "small",
+							Name:        "smallsmall",
 							Description: "testservice-small plan description",
 							Free:        integration.BoolPtr(false),
 							Bindable:    integration.BoolPtr(false),
@@ -279,6 +306,26 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 			},
 			want:    nil,
 			wantErr: errors.New(`valid "parent_reference" required: compositemariadbinstances.syn.tools "non-existent" not found (correlation-id: "corrid")`),
+		},
+		{
+			name: "creates a foo instance",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1",
+				details: domain.ProvisionDetails{
+					PlanID:    "small",
+					ServiceID: "foo",
+				},
+				asyncAllowed: true,
+			},
+			resources: func() []client.Object {
+				return []client.Object{
+					integration.NewTestService("foo", crossplane.FooService),
+					integration.NewTestServicePlan("foo", "small", crossplane.FooService).Composition,
+				}
+			},
+			want:    &domain.ProvisionedServiceSpec{IsAsync: true},
+			wantErr: nil,
 		},
 	}
 
@@ -1263,6 +1310,42 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 							"port": 1234,
 						},
 					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "creates a foo instance and gets the binding",
+			args: args{
+				ctx:        ctx,
+				instanceID: "foo-1",
+				bindingID:  "foo-1",
+				planID:     "small",
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("foo", "small", crossplane.FooService)
+				instance := integration.NewTestInstance("foo-1", servicePlan, crossplane.FooService, "", "")
+				objs := []client.Object{
+					integration.NewTestService("foo", crossplane.FooService),
+					servicePlan.Composition,
+					instance,
+					integration.NewTestSecret(integration.TestNamespace, "foo-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "testendpoint",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						xrv1.ResourceCredentialsSecretUserKey:     "foo-1",
+					}),
+				}
+				return func(c client.Client) error {
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want: &domain.GetBindingSpec{
+				Credentials: crossplane.Credentials{
+					"endpoint": "testendpoint",
+					"port":     1234,
+					"username": "foo-1",
+					"password": "supersecret",
 				},
 			},
 			wantErr: nil,
