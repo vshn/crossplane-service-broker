@@ -10,6 +10,7 @@ require (
 	github.com/go-logr/zapr v0.4.0
 	github.com/go-openapi/spec v0.19.5 // indirect
 	github.com/gorilla/mux v1.8.0
+	github.com/hashicorp/go-cleanhttp v0.5.1
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/pascaldekloe/jwt v1.10.0
 	github.com/pivotal-cf/brokerapi/v8 v8.0.0

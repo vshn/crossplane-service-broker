@@ -4,10 +4,7 @@ An https://github.com/openservicebrokerapi/servicebroker[Open Service Broker] im
 
 == Settings
 
-NOTE: The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
-NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and
-"OPTIONAL" in this section are to be interpreted as described in
-https://tools.ietf.org/html/rfc2119[RFC 2119].
+NOTE: The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this section are to be interpreted as described inhttps://tools.ietf.org/html/rfc2119[RFC 2119].
 
 |===
 |Environment Variable |Description |Default |Example
@@ -22,7 +19,7 @@ https://tools.ietf.org/html/rfc2119[RFC 2119].
 |_MUST be provided, no default value is defined._
 |`d7bb595e-abb4-49a6-97b3-a52c67150a34,5ba16ba2-7f07-4412-8fd2-0e9ac7acc831`
 
-|`OBS_USERNAME`
+|`OSB_USERNAME`
 |Username to connect to the service broker.
  Used for to authenticate all HTTP requests except to `/health`, `/metrics` and except if a https://tools.ietf.org/html/rfc7519[JWT] https://tools.ietf.org/html/rfc6750[`Bearer` token] is presented.
 |_MUST be provided, no default value is defined._
@@ -61,18 +58,22 @@ Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 |`1048576` (i.e. ~1 MB)
 |
 
-|`OSB_JWT_KEYS_JWK_PATH`
-|A path to a https://tools.ietf.org/html/rfc7517[JWK file] that contains keys to verify the signature of https://tools.ietf.org/html/rfc7519[JWT tokens].
+|`OSB_JWT_KEYS_JWK_URL`
+|https://tools.ietf.org/html/rfc1738[An url] to a https://tools.ietf.org/html/rfc7517[JWK file] that contains keys to verify the signature of https://tools.ietf.org/html/rfc7519[JWT tokens].
 Tokens with valid signatures are permitted access to the service broker API.
-|_RECOMMENDED when using JWT Bearer tokens. No default value is defined._
-|`/etc/osb/jwk.json`
 
-|`OSB_JWT_KEYS_PEM_PATH`
-|A path to a https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail[PEM file] that contains keys to verify the signature of https://tools.ietf.org/html/rfc7519[JWT tokens].
+Only the `https` and `file` protocol are currently supported.
+|_RECOMMENDED when using JWT Bearer tokens. No default value is defined._
+|`file:///etc/osb/jwk.json` or `https://auth.corp/token_signing_keys.json`
+
+|`OSB_JWT_KEYS_PEM_URL`
+|https://tools.ietf.org/html/rfc1738[An url] to a https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail[PEM file] that contains keys to verify the signature of https://tools.ietf.org/html/rfc7519[JWT tokens].
 Tokens with valid signatures are permitted access to the service broker API.
 More than one key may be present in the file.
 **The keys MUST NOT be encrypted.**
 HMAC Secrets can only be defined in JWK files and are not supported in PEM files.
+
+Only the `https` and `file` protocol are currently supported.
 |_NOT RECOMMENDED, use JWK keys instead. No default value is defined._
-|`/etc/osb/certs.pem`
+|`file:///etc/osb/certs.pem` or `https://auth.corp/token_signing_keys.pem`
 |===

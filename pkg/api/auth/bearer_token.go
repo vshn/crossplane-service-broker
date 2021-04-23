@@ -25,6 +25,7 @@ type BearerToken struct {
 //   }
 const TokenPropertyName = "bearer-token"
 
+// Handler represents a mux.MiddlewareFunc
 func (t *BearerToken) Handler(handler http.Handler) http.Handler {
 	if t.Keys == nil { // things to terribly wrong if Keys is nil
 		t.Keys = &jwt.KeyRegister{}

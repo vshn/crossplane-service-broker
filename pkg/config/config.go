@@ -3,11 +3,14 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	http "github.com/hashicorp/go-cleanhttp"
 	"github.com/pascaldekloe/jwt"
 )
 
@@ -27,7 +30,7 @@ type Config struct {
 
 // GetEnv is an interface that allows to get variables from the environment
 type GetEnv func(string) string
-type keyLoadingFun func(keys jwt.KeyRegister, file []byte) (int, error)
+type keyLoadingFun func(keys jwt.KeyRegister, content []byte) (int, error)
 
 // ReadConfig reads env variables using the passed function.
 func ReadConfig(getEnv GetEnv) (*Config, error) {
@@ -89,37 +92,89 @@ func ReadConfig(getEnv GetEnv) (*Config, error) {
 }
 
 func loadJWTSigningKeys(getEnv GetEnv, keys jwt.KeyRegister) error {
-	err := loadKeysFromFile(getEnv, keys, "OSB_JWT_KEYS_JWK_PATH", loadJWK)
+	err := loadKeysFromPath(getEnv, keys, "OSB_JWT_KEYS_JWK_URL", loadJWK)
 	if err != nil {
 		return err
 	}
+	err = loadKeysFromPath(getEnv, keys, "OSB_JWT_KEYS_PEM_URL", loadPEM)
+	return err
+}
 
-	err = loadKeysFromFile(getEnv, keys, "OSB_JWT_KEYS_PEM_PATH", loadPEM)
+func loadKeysFromPath(getEnv GetEnv, keys jwt.KeyRegister, envVarName string, loadFunc keyLoadingFun) error {
+	envVarValue := getEnv(envVarName)
+	if envVarValue == "" {
+		return nil
+	}
+
+	content, err := loadContentFromPath(envVarValue)
+	if err != nil {
+		return fmt.Errorf("unable to load keys from '%s' (defined in %s): %w", envVarValue, envVarName, err)
+	}
+
+	_, err = loadFunc(keys, content)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func loadKeysFromFile(getEnv GetEnv, keys jwt.KeyRegister, envVarName string, loadFunc keyLoadingFun) error {
-	jwkPath := getEnv(envVarName)
-	if jwkPath != "" {
-		file, err := os.ReadFile(jwkPath)
-		if err != nil {
-			return fmt.Errorf("%s is set to '%s', but: %w", envVarName, jwkPath, err)
-		}
-		_, err = loadFunc(keys, file)
-		if err != nil {
-			return fmt.Errorf("unable to parse %s '%s': %w", envVarName, jwkPath, err)
-		}
+func loadContentFromPath(path string) ([]byte, error) {
+	if path == "" {
+		return nil, fmt.Errorf("an empty path is not allowed")
 	}
-	return nil
+
+	urlOfPath, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("the value '%s' can't be parsed as url: %w", path, err)
+	}
+
+	var content []byte
+	switch {
+	case urlOfPath.Scheme == "https":
+		content, err = loadContentFromHTTP(urlOfPath)
+	case urlOfPath.Scheme == "file":
+		content, err = loadContentFromFile(urlOfPath)
+	case urlOfPath.Scheme == "http":
+		return nil, fmt.Errorf("the scheme '%s' of '%s' is not supported. Did you mean 'https' instead of 'http'? Supported schemes are 'https' and 'file'", urlOfPath.Scheme, path)
+	default:
+		return nil, fmt.Errorf("the scheme '%s' of '%s' is not supported. Supported schemes are 'https' and 'file'", urlOfPath.Scheme, path)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("content can't be loaded from '%s': %w", urlOfPath, err)
+	}
+
+	return content, nil
 }
 
-func loadJWK(keys jwt.KeyRegister, file []byte) (int, error) {
-	return keys.LoadJWK(file)
+func loadContentFromHTTP(url *url.URL) ([]byte, error) {
+	client := http.DefaultClient()
+	urlStr := url.String()
+	response, err := client.Get(urlStr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to '%s': '%w", urlStr, err)
+	}
+	defer response.Body.Close()
+
+	content, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read response from '%s': %w", urlStr, err)
+	}
+	return content, nil
 }
 
-func loadPEM(keys jwt.KeyRegister, file []byte) (int, error) {
-	return keys.LoadPEM(file, []byte{})
+func loadContentFromFile(fileURL *url.URL) ([]byte, error) {
+	filePath := fileURL.Path
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read file '%s': %w", filePath, err)
+	}
+	return content, nil
+}
+
+func loadJWK(keys jwt.KeyRegister, content []byte) (int, error) {
+	return keys.LoadJWK(content)
+}
+
+func loadPEM(keys jwt.KeyRegister, content []byte) (int, error) {
+	return keys.LoadPEM(content, []byte{})
 }
