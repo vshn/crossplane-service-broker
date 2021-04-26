@@ -103,13 +103,13 @@ func (a AuthenticationMiddleware) Handler(handler http.Handler) http.Handler {
 }
 
 func (a AuthenticationMiddleware) handleBasicAuth(w http.ResponseWriter, r *http.Request, handler http.Handler) {
-	r = r.WithContext(context.WithValue(r.Context(), AuthenticationMethodPropertyName, AuthorizationMethodBasicAuth))
-	a.basicAuth.Handler(handler).ServeHTTP(w, r)
+	ctx := context.WithValue(r.Context(), AuthenticationMethodPropertyName, AuthorizationMethodBasicAuth)
+	a.basicAuth.Handler(handler).ServeHTTP(w, r.WithContext(ctx))
 }
 
 func (a AuthenticationMiddleware) handleBearerToken(w http.ResponseWriter, r *http.Request, handler http.Handler) {
-	r = r.WithContext(context.WithValue(r.Context(), AuthenticationMethodPropertyName, AuthorizationMethodBearerToken))
-	a.bearerTokenAuth.Handler(handler).ServeHTTP(w, r)
+	ctx := context.WithValue(r.Context(), AuthenticationMethodPropertyName, AuthorizationMethodBearerToken)
+	a.bearerTokenAuth.Handler(handler).ServeHTTP(w, r.WithContext(ctx))
 }
 
 func unauthorized(w http.ResponseWriter) {

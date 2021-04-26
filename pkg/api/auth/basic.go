@@ -71,8 +71,8 @@ func (b Basic) authorized(r *http.Request) (*http.Request, bool) {
 		p := sha256.Sum256([]byte(password))
 		for _, c := range b.Credentials {
 			if c.isAuthorized(u, p) {
-				r = r.WithContext(context.WithValue(r.Context(), UserPropertyName, username))
-				return r, true
+				ctx := context.WithValue(r.Context(), UserPropertyName, username)
+				return r.WithContext(ctx), true
 			}
 		}
 	}

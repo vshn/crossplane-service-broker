@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,6 +11,7 @@ import (
 	"testing"
 
 	"code.cloudfoundry.org/lager"
+	"github.com/pascaldekloe/jwt"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/pivotal-cf/brokerapi/v8/fakes"
 	"github.com/stretchr/testify/assert"
@@ -21,45 +21,148 @@ import (
 const (
 	username = "test"
 	password = "TEST"
+
+	// HMACSHA256 Token:
+	//   {
+	//    "alg": "HS256",
+	//    "typ": "JWT"
+	//   }.
+	//   {
+	//    "sub": "1234567890",
+	//    "name": "John Doe",
+	//    "iat": 1516239022,
+	//    "foo": "bart"
+	//   }.
+	//   HMACSHA256(
+	//    base64UrlEncode(header) + "." +
+	//    base64UrlEncode(payload),
+	//    "test"
+	//   )
+	// You can view and edit this token at:
+	// https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJmb28iOiJiYXJ0In0.stIfFmxL4y-GljRo2oJF0FWwheo6Ss-mIjJVJ-XPIY0
+	token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJmb28iOiJiYXJ0In0.stIfFmxL4y-GljRo2oJF0FWwheo6Ss-mIjJVJ-XPIY0"
+
+	// HMACSHA256 Token, but signed with a different key than the other token:
+	//   {
+	//    "alg": "HS256",
+	//    "typ": "JWT"
+	//   }.
+	//   {
+	//    "sub": "1234567890",
+	//    "name": "John Doe",
+	//    "iat": 1516239022,
+	//    "foo": "bart"
+	//   }.
+	//   HMACSHA256(
+	//    base64UrlEncode(header) + "." +
+	//    base64UrlEncode(payload) +
+	//    "invalid_test"
+	//   )
+	// You can view and edit this token at:
+	// https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJmb28iOiJiYXJ0In0.HCGub1H3ZaVRBBUajMYoqTCl13pyck5Mego8mWghl88
+	invalidToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJmb28iOiJiYXJ0In0.HCGub1H3ZaVRBBUajMYoqTCl13pyck5Mego8mWghl88"
 )
 
 func setupServer() (*API, *fakes.AutoFakeServiceBroker) {
 	fakeServiceBroker := &fakes.AutoFakeServiceBroker{}
 
-	a := New(fakeServiceBroker, auth.SingleCredential(username, password), nil, lager.NewLogger("test"))
+	a := New(fakeServiceBroker,
+		auth.SingleCredential(username, password),
+		&jwt.KeyRegister{Secrets: [][]byte{[]byte("test")}},
+		lager.NewLogger("test"))
 	return a, fakeServiceBroker
 }
 
-func makeRequest(a *API, method, path, username, password, apiVersion, contentType string, body io.Reader) *httptest.ResponseRecorder {
+// Do not add references here!
+type apiRequest struct {
+	method      string
+	path        string
+	username    string
+	password    string
+	token       string
+	apiVersion  string
+	contentType string
+	body        bytes.Buffer
+}
+
+func makeRequest(a *API, r apiRequest) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
-	request, _ := http.NewRequest(method, path, body)
-	if username != "" {
-		request.SetBasicAuth(username, password)
+	request, _ := http.NewRequest(r.method, r.path, &r.body)
+	if r.username != "" {
+		request.SetBasicAuth(r.username, r.password)
+	} else if r.token != "" {
+		request.Header.Set("Authorization", "Bearer "+r.token)
 	}
-	if apiVersion != "" {
-		request.Header.Add("X-Broker-API-Version", apiVersion)
+
+	if r.apiVersion != "" {
+		request.Header.Add("X-Broker-API-Version", r.apiVersion)
 	}
-	if contentType != "" {
-		request.Header.Add("Content-Type", contentType)
+	if r.contentType != "" {
+		request.Header.Add("Content-Type", r.contentType)
 	}
 	a.ServeHTTP(recorder, request)
 	return recorder
 }
 
 func assertAPIMiddlewaresWork(t *testing.T, a *API, method, path string) {
-	t.Run(method+" "+path+" unauthorized", func(t *testing.T) {
-		rr := makeRequest(a, method, path, "", "", "", "", nil)
+	t.Run(fmt.Sprintf("given '%s' on '%s' and no credentials expect unauthorized", method, path), func(t *testing.T) {
+		rr := makeRequest(a, apiRequest{
+			method: method,
+			path:   path,
+		})
 		assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	})
-	t.Run(method+" "+path+" authorized missing version", func(t *testing.T) {
-		rr := makeRequest(a, method, path, username, password, "", "", nil)
-		assert.Equal(t, http.StatusPreconditionFailed, rr.Code)
+	t.Run(fmt.Sprintf("given '%s' on '%s' and invalid username expect unauthorized", method, path), func(t *testing.T) {
+		rr := makeRequest(a, apiRequest{
+			method:   method,
+			username: fmt.Sprintf("invalid_%s", username),
+			password: password,
+			path:     path,
+		})
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+	t.Run(fmt.Sprintf("given '%s' on '%s' and invalid password expect unauthorized", method, path), func(t *testing.T) {
+		rr := makeRequest(a, apiRequest{
+			method:   method,
+			username: username,
+			password: fmt.Sprintf("invalid_%s", password),
+			path:     path,
+		})
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+	t.Run(fmt.Sprintf("given '%s' on '%s' and invalid bearer token expect unauthorized", method, path), func(t *testing.T) {
+		rr := makeRequest(a, apiRequest{
+			method: method,
+			token:  "garbage",
+			path:   path,
+		})
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+	t.Run(fmt.Sprintf("given '%s' on '%s' and invalid bearer token signature expect unauthorized", method, path), func(t *testing.T) {
+		rr := makeRequest(a, apiRequest{
+			method: method,
+			token:  invalidToken,
+			path:   path,
+		})
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+	t.Run(fmt.Sprintf("given '%s' on '%s' and missing api version expect unauthorized", method, path), func(t *testing.T) {
+		_, _ = assertAuthenticatedRequest(t, a, http.StatusPreconditionFailed, apiRequest{
+			method: method,
+			path:   path,
+		})
 	})
 }
 
 func TestAPI_Healthz(t *testing.T) {
 	a, _ := setupServer()
-	rr := makeRequest(a, http.MethodGet, "/healthz", "", "", "", "", nil)
+	rr := makeRequest(a, apiRequest{method: http.MethodGet, path: "/healthz"})
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestAPI_Metrics(t *testing.T) {
+	a, _ := setupServer()
+	rr := makeRequest(a, apiRequest{method: http.MethodGet, path: "/metrics"})
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
@@ -81,8 +184,11 @@ func TestAPI_SimpleRequests(t *testing.T) {
 
 		assertAPIMiddlewaresWork(t, a, method, path)
 		t.Run(p+" ok", func(t *testing.T) {
-			rr := makeRequest(a, method, path, username, password, "2.14", "", nil)
-			assert.Equal(t, http.StatusOK, rr.Code)
+			_, _ = assertAuthenticatedRequest(t, a, http.StatusOK, apiRequest{
+				method:     method,
+				path:       path,
+				apiVersion: "2.14",
+			})
 		})
 	}
 }
@@ -109,11 +215,16 @@ func TestAPI_Provision(t *testing.T) {
 		PlanID:    "2222-3333-4444",
 	}
 
-	body := &bytes.Buffer{}
-	assert.NoError(t, json.NewEncoder(body).Encode(data))
+	body := bytes.Buffer{}
+	assert.NoError(t, json.NewEncoder(&body).Encode(data))
 
-	rr := makeRequest(a, method, path, username, password, "2.14", "application/json", body)
-	assert.Equal(t, http.StatusCreated, rr.Code)
+	_, _ = assertAuthenticatedRequest(t, a, http.StatusCreated, apiRequest{
+		method:      method,
+		path:        path,
+		apiVersion:  "2.14",
+		contentType: "application/json",
+		body:        body,
+	})
 }
 
 func TestAPI_Deprovision(t *testing.T) {
@@ -127,8 +238,11 @@ func TestAPI_Deprovision(t *testing.T) {
 		"plan_id":    []string{"2222-3333-4444"},
 	}
 
-	rr := makeRequest(a, method, fmt.Sprintf("%s?%s", path, body.Encode()), username, password, "2.14", "", nil)
-	assert.Equal(t, http.StatusOK, rr.Code)
+	_, _ = assertAuthenticatedRequest(t, a, http.StatusOK, apiRequest{
+		method:     method,
+		path:       fmt.Sprintf("%s?%s", path, body.Encode()),
+		apiVersion: "2.14",
+	})
 }
 
 func TestAPI_Update(t *testing.T) {
@@ -141,11 +255,16 @@ func TestAPI_Update(t *testing.T) {
 		ServiceID: "1111-2222-3333",
 	}
 
-	body := &bytes.Buffer{}
-	assert.NoError(t, json.NewEncoder(body).Encode(data))
+	body := bytes.Buffer{}
+	assert.NoError(t, json.NewEncoder(&body).Encode(data))
 
-	rr := makeRequest(a, method, path, username, password, "2.14", "application/json", body)
-	assert.Equal(t, http.StatusOK, rr.Code)
+	_, _ = assertAuthenticatedRequest(t, a, http.StatusOK, apiRequest{
+		method:      method,
+		path:        path,
+		apiVersion:  "2.14",
+		contentType: "application/json",
+		body:        body,
+	})
 }
 
 func TestAPI_Bind(t *testing.T) {
@@ -159,11 +278,16 @@ func TestAPI_Bind(t *testing.T) {
 		PlanID:    "2222-3333-4444",
 	}
 
-	body := &bytes.Buffer{}
-	assert.NoError(t, json.NewEncoder(body).Encode(data))
+	body := bytes.Buffer{}
+	assert.NoError(t, json.NewEncoder(&body).Encode(data))
 
-	rr := makeRequest(a, method, path, username, password, "2.14", "application/json", body)
-	assert.Equal(t, http.StatusCreated, rr.Code)
+	_, _ = assertAuthenticatedRequest(t, a, http.StatusCreated, apiRequest{
+		method:      method,
+		path:        path,
+		apiVersion:  "2.14",
+		contentType: "application/json",
+		body:        body,
+	})
 }
 
 func TestAPI_Unbind(t *testing.T) {
@@ -177,6 +301,26 @@ func TestAPI_Unbind(t *testing.T) {
 		"plan_id":    []string{"2222-3333-4444"},
 	}
 
-	rr := makeRequest(a, method, fmt.Sprintf("%s?%s", path, body.Encode()), username, password, "2.14", "", nil)
-	assert.Equal(t, http.StatusOK, rr.Code)
+	_, _ = assertAuthenticatedRequest(t, a, http.StatusOK, apiRequest{
+		method:     method,
+		path:       fmt.Sprintf("%s?%s", path, body.Encode()),
+		apiVersion: "2.14",
+	})
+}
+
+func assertAuthenticatedRequest(t *testing.T, a *API, expectedStatus int, r apiRequest) (rBasic, rBearer *httptest.ResponseRecorder) {
+	basicAuthRequest := r
+	basicAuthRequest.username = username
+	basicAuthRequest.password = password
+	basicAuthRequest.token = ""
+	rBasic = makeRequest(a, basicAuthRequest)
+	assert.Equalf(t, expectedStatus, rBasic.Code, "Error when authenticating to '%s' using valid Basic credentials: Unexpected status code on response", r.path)
+
+	bearerAuthRequest := r
+	bearerAuthRequest.username = ""
+	bearerAuthRequest.password = ""
+	bearerAuthRequest.token = token
+	rBearer = makeRequest(a, bearerAuthRequest)
+	assert.Equalf(t, expectedStatus, rBearer.Code, "Error when authenticating to '%s' using a valid Bearer token: Unexpected status code on response", r.path)
+	return
 }
