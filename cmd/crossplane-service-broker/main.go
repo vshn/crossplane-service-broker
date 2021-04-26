@@ -12,6 +12,7 @@ import (
 
 	"code.cloudfoundry.org/lager"
 	"github.com/gorilla/mux"
+	"github.com/vshn/crossplane-service-broker/pkg/api/auth"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/vshn/crossplane-service-broker/pkg/api"
@@ -70,7 +71,9 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 
 	b := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}))
 
-	a := api.New(b, cfg.Username, cfg.Password, logger.WithData(lager.Data{"component": "api"}))
+	serviceBrokerCredential := auth.SingleCredential(cfg.Username, cfg.Password)
+	jwtKeys := &cfg.JWKeyRegister
+	a := api.New(b, serviceBrokerCredential, jwtKeys, logger.WithData(lager.Data{"component": "api"}))
 	router.NewRoute().Handler(a)
 
 	srv := http.Server{

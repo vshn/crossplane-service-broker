@@ -35,8 +35,6 @@ CROSSPLANE_CRDS = $(addprefix $(TESTDATA_CRD_DIR)/, apiextensions.crossplane.io_
 					pkg.crossplane.io_providerrevisions.yaml \
 					pkg.crossplane.io_providers.yaml)
 
-KUSTOMIZE ?= go run sigs.k8s.io/kustomize/kustomize/v3
-
 # Image URL to use all building/pushing image targets
 DOCKER_IMG ?= docker.io/vshn/crossplane-service-broker:$(IMG_TAG)
 QUAY_IMG ?= quay.io/vshn/crossplane-service-broker:$(IMG_TAG)

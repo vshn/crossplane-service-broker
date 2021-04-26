@@ -36,6 +36,7 @@ kind-e2e-image: kind-setup ## Load the e2e container image onto e2e cluster
 .PHONY: setup
 setup: export KUBECONFIG = $(KIND_KUBECONFIG)
 setup: $(bats) kind-setup ## Run the e2e setup
+	go install sigs.k8s.io/kustomize/kustomize@latest
 
 .PHONY: clean-setup
 clean-setup: export KUBECONFIG = $(KIND_KUBECONFIG)
