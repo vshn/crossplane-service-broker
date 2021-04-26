@@ -14,6 +14,8 @@ type authenticationHandler interface {
 	Handler(handler http.Handler) http.Handler
 }
 
+type principalReader func(req *http.Request) (Principal, error)
+
 // AuthenticationMiddleware represents a mux middleware which, given an http.Request, can check whether
 // it's Authorization header contains a valid BearerToken or – if not – valid Basic Auth information.
 type AuthenticationMiddleware struct {
@@ -37,7 +39,7 @@ const (
 	//       // Bearer Token auth
 	//     }
 	//   }
-	AuthorizationMethodBearerToken contextKey = "Bearer"
+	AuthorizationMethodBearerToken = "Bearer"
 
 	// AuthorizationMethodBasicAuth should be used to compare with the value returned by AuthenticationMethodPropertyName:
 	//
@@ -47,7 +49,7 @@ const (
 	//       // Basic auth
 	//     }
 	//   }
-	AuthorizationMethodBasicAuth contextKey = "Basic"
+	AuthorizationMethodBasicAuth = "Basic"
 )
 
 var (
