@@ -2,7 +2,6 @@ package config
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -14,51 +13,86 @@ func Test_ReadConfig(t *testing.T) {
 		err    string
 	}{
 		"serviceIDs required": {
-			env:    map[string]string{},
+			env: map[string]string{
+				EnvUsername:  "user",
+				EnvPassword:  "password",
+				EnvNamespace: "namespace",
+			},
+			config: nil,
+			err:    "OSB_SERVICE_IDS is required, but was not defined or is empty",
+		},
+		"empty serviceIDs given": {
+			env: map[string]string{
+				EnvUsername:   "user",
+				EnvPassword:   "password",
+				EnvNamespace:  "namespace",
+				EnvServiceIDs: ",,,",
+			},
 			config: nil,
 			err:    "OSB_SERVICE_IDS is required, but was not defined or is empty",
 		},
 		"username required": {
 			env: map[string]string{
-				"OSB_SERVICE_IDS": "1,2,3",
+				EnvServiceIDs: "1,2,3",
 			},
 			config: nil,
 			err:    "OSB_USERNAME is required, but was not defined or is empty",
 		},
 		"password required": {
 			env: map[string]string{
-				"OSB_SERVICE_IDS": "1,2,3",
-				"OSB_USERNAME":    "user",
+				EnvServiceIDs: "1,2,3",
+				EnvUsername:   "user",
 			},
 			config: nil,
 			err:    "OSB_PASSWORD is required, but was not defined or is empty",
 		},
 		"namespace required": {
 			env: map[string]string{
-				"OSB_SERVICE_IDS": "1,2,3",
-				"OSB_USERNAME":    "user",
-				"OSB_PASSWORD":    "pw",
+				EnvServiceIDs: "1,2,3",
+				EnvUsername:   "user",
+				EnvPassword:   "pw",
 			},
 			config: nil,
 			err:    "OSB_NAMESPACE is required, but was not defined or is empty",
 		},
-		"defaults configured": {
+		"username claim given": {
 			env: map[string]string{
-				"OSB_SERVICE_IDS": "1,2,3",
-				"OSB_USERNAME":    "user",
-				"OSB_PASSWORD":    "pw",
-				"OSB_NAMESPACE":   "test",
+				EnvServiceIDs:    "1,2,3",
+				EnvUsername:      "user",
+				EnvPassword:      "pw",
+				EnvNamespace:     "test",
+				EnvUsernameClaim: "different than default",
 			},
 			config: &Config{
 				ServiceIDs:     []string{"1", "2", "3"},
 				ListenAddr:     ":8080",
 				Username:       "user",
 				Password:       "pw",
-				UsernameClaim:  "sub",
+				UsernameClaim:  "different than default",
 				Namespace:      "test",
-				ReadTimeout:    180 * time.Second,
-				WriteTimeout:   180 * time.Second,
-				MaxHeaderBytes: 1 << 20,
+				ReadTimeout:    defaultHTTPTimeout,
+				WriteTimeout:   defaultHTTPTimeout,
+				MaxHeaderBytes: defaultHTTPMaxHeaderBytes,
+			},
+			err: "",
+		},
+		"defaults configured": {
+			env: map[string]string{
+				EnvServiceIDs: "1,2,3",
+				EnvUsername:   "user",
+				EnvPassword:   "pw",
+				EnvNamespace:  "test",
+			},
+			config: &Config{
+				ServiceIDs:     []string{"1", "2", "3"},
+				ListenAddr:     defaultHTTPListenAddr,
+				Username:       "user",
+				Password:       "pw",
+				UsernameClaim:  defaultUsernameClaim,
+				Namespace:      "test",
+				ReadTimeout:    defaultHTTPTimeout,
+				WriteTimeout:   defaultHTTPTimeout,
+				MaxHeaderBytes: defaultHTTPMaxHeaderBytes,
 			},
 			err: "",
 		},

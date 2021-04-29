@@ -83,7 +83,6 @@ const (
 func ReadConfig(getEnv GetEnv) (*Config, error) {
 	cfg := Config{
 		Kubeconfig:    getEnv(EnvKubeconfig),
-		ServiceIDs:    strings.Split(getEnv(EnvServiceIDs), ","),
 		Username:      getEnv(EnvUsername),
 		Password:      getEnv(EnvPassword),
 		UsernameClaim: getEnv(EnvUsernameClaim),
@@ -91,63 +90,98 @@ func ReadConfig(getEnv GetEnv) (*Config, error) {
 		ListenAddr:    getEnv(EnvHTTPListenAddr),
 	}
 
-	for i := range cfg.ServiceIDs {
-		cfg.ServiceIDs[i] = strings.TrimSpace(cfg.ServiceIDs[i])
-		if len(cfg.ServiceIDs[i]) == 0 {
-			return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvServiceIDs)
-		}
+	ids, err := getServiceIDs(getEnv)
+	if err != nil {
+		return nil, err
 	}
+	cfg.ServiceIDs = ids
 
-	if cfg.Username == "" {
-		return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvUsername)
-	}
-	if cfg.Password == "" {
-		return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvPassword)
-	}
-	if cfg.UsernameClaim == "" {
-		cfg.UsernameClaim = defaultUsernameClaim
-	}
-
-	if cfg.Namespace == "" {
-		return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvNamespace)
-	}
-
-	if cfg.ListenAddr == "" {
-		cfg.ListenAddr = defaultHTTPListenAddr
-	}
-
-	rt, err := getTimeoutFromEnv(getEnv, EnvHTTPReadTimeout)
+	rt, err := getTimeout(getEnv, EnvHTTPReadTimeout)
 	if err != nil {
 		return nil, err
 	}
 	cfg.ReadTimeout = rt
 
-	wt, err := getTimeoutFromEnv(getEnv, EnvHTTPWriteTimeout)
+	wt, err := getTimeout(getEnv, EnvHTTPWriteTimeout)
 	if err != nil {
 		return nil, err
 	}
 	cfg.WriteTimeout = wt
 
-	httpMaxHeaderBytes := getEnv(EnvHTTPMaxHeaderBytes)
-	if httpMaxHeaderBytes == "" {
-		cfg.MaxHeaderBytes = defaultHTTPMaxHeaderBytes
-	} else {
-		mhb, err := strconv.Atoi(httpMaxHeaderBytes)
-		if err != nil {
-			return nil, fmt.Errorf("%s is set to '%s', but a number was expected: %w", EnvHTTPMaxHeaderBytes, httpMaxHeaderBytes, err)
-		}
-		cfg.MaxHeaderBytes = mhb
+	bytes, err := getHTTPMaxHeaderBytes(getEnv)
+	if err != nil {
+		return nil, err
 	}
+	cfg.MaxHeaderBytes = bytes
 
 	err = loadJWTSigningKeys(getEnv, cfg.JWKeyRegister)
 	if err != nil {
 		return nil, err
 	}
 
+	err = ensureRequiredSettings(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	setDefaults(&cfg)
+
 	return &cfg, nil
 }
 
-func getTimeoutFromEnv(getEnv GetEnv, timeoutName string) (time.Duration, error) {
+func setDefaults(cfg *Config) {
+	if cfg.UsernameClaim == "" {
+		cfg.UsernameClaim = defaultUsernameClaim
+	}
+
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = defaultHTTPListenAddr
+	}
+}
+
+func ensureRequiredSettings(cfg Config) error {
+	if cfg.Username == "" {
+		return fmt.Errorf("%s is required, but was not defined or is empty", EnvUsername)
+	}
+	if cfg.Password == "" {
+		return fmt.Errorf("%s is required, but was not defined or is empty", EnvPassword)
+	}
+	if cfg.Namespace == "" {
+		return fmt.Errorf("%s is required, but was not defined or is empty", EnvNamespace)
+	}
+	return nil
+}
+
+func getHTTPMaxHeaderBytes(getEnv GetEnv) (int, error) {
+	var bytes int
+	httpMaxHeaderBytes := getEnv(EnvHTTPMaxHeaderBytes)
+	if httpMaxHeaderBytes == "" {
+		bytes = defaultHTTPMaxHeaderBytes
+	} else {
+		mhb, err := strconv.Atoi(httpMaxHeaderBytes)
+		if err != nil {
+			return 0, fmt.Errorf("%s is set to '%s', but a number was expected: %w", EnvHTTPMaxHeaderBytes, httpMaxHeaderBytes, err)
+		}
+		bytes = mhb
+	}
+	return bytes, nil
+}
+
+func getServiceIDs(getEnv GetEnv) ([]string, error) {
+	var ids []string
+	for _, s := range strings.Split(getEnv(EnvServiceIDs), ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			ids = append(ids, s)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvServiceIDs)
+	}
+	return ids, nil
+}
+
+func getTimeout(getEnv GetEnv, timeoutName string) (time.Duration, error) {
 	timeout := getEnv(timeoutName)
 	if timeout == "" {
 		return defaultHTTPTimeout, nil
