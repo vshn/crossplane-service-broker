@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -21,6 +20,7 @@ type Config struct {
 	ListenAddr     string
 	Username       string
 	Password       string
+	UsernameClaim  string
 	JWKeyRegister  jwt.KeyRegister
 	Namespace      string
 	ReadTimeout    time.Duration
@@ -30,58 +30,113 @@ type Config struct {
 
 // GetEnv is an interface that allows to get variables from the environment
 type GetEnv func(string) string
+
 type keyLoadingFun func(keys jwt.KeyRegister, content []byte) (int, error)
+
+const (
+	// EnvKubeconfig is used to configure the internal K8s client
+	EnvKubeconfig = "KUBECONFIG"
+
+	// EnvNamespace defines the K8s namespace that is used to keep the state of the service broker.
+	EnvNamespace = "OSB_NAMESPACE"
+
+	// EnvServiceIDs is a comma-separated list (no whitespace after comma!) of service ids available in the cluster
+	EnvServiceIDs = "OSB_SERVICE_IDS"
+
+	// EnvUsername defines the username to use when connecting to this service broker
+	// when no JWT Bearer Token is presented.
+	EnvUsername = "OSB_USERNAME"
+
+	// EnvPassword defines the password to use when connecting to this service broker
+	// when no JWT Bearer Token is presented.
+	EnvPassword = "OSB_PASSWORD"
+
+	// EnvUsernameClaim defines the name of the claim which is considered to be the username of the request principal
+	// whenever a JWT Bearer Token is presented.
+	EnvUsernameClaim = "OSB_USERNAME_CLAIM"
+
+	// EnvHTTPListenAddr defines which port to listen on for HTTP requests.
+	EnvHTTPListenAddr = "OSB_HTTP_LISTEN_ADDR"
+
+	// EnvHTTPReadTimeout sets a read timeout for HTTP requests.
+	EnvHTTPReadTimeout = "OSB_HTTP_READ_TIMEOUT"
+
+	// EnvHTTPWriteTimeout sets a write timeout for HTTP requests.
+	EnvHTTPWriteTimeout = "OSB_HTTP_WRITE_TIMEOUT"
+
+	// EnvHTTPMaxHeaderBytes sets the maximum header size for HTTP requests.
+	EnvHTTPMaxHeaderBytes = "OSB_HTTP_MAX_HEADER_BYTES"
+
+	EnvJWTKeyJWKURL = "OSB_JWT_KEYS_JWK_URL"
+
+	// EnvJWTKeyPEMURL sets the URL of a PEM file, which is used to validate the signatures of the JWT Bearer Tokens.
+	EnvJWTKeyPEMURL = "OSB_JWT_KEYS_PEM_URL"
+
+	defaultHTTPTimeout        = 3 * time.Minute
+	defaultHTTPMaxHeaderBytes = 1 << 20 // 1 MB
+	defaultHTTPListenAddr     = ":8080"
+	defaultUsernameClaim      = "sub"
+)
 
 // ReadConfig reads env variables using the passed function.
 func ReadConfig(getEnv GetEnv) (*Config, error) {
 	cfg := Config{
-		Kubeconfig: getEnv("KUBECONFIG"),
-		ServiceIDs: strings.Split(getEnv("OSB_SERVICE_IDS"), ","),
-		Username:   getEnv("OSB_USERNAME"),
-		Password:   getEnv("OSB_PASSWORD"),
-		Namespace:  getEnv("OSB_NAMESPACE"),
-		ListenAddr: getEnv("OSB_HTTP_LISTEN_ADDR"),
+		Kubeconfig:    getEnv(EnvKubeconfig),
+		ServiceIDs:    strings.Split(getEnv(EnvServiceIDs), ","),
+		Username:      getEnv(EnvUsername),
+		Password:      getEnv(EnvPassword),
+		UsernameClaim: getEnv(EnvUsernameClaim),
+		Namespace:     getEnv(EnvNamespace),
+		ListenAddr:    getEnv(EnvHTTPListenAddr),
 	}
 
 	for i := range cfg.ServiceIDs {
 		cfg.ServiceIDs[i] = strings.TrimSpace(cfg.ServiceIDs[i])
 		if len(cfg.ServiceIDs[i]) == 0 {
-			return nil, errors.New("OSB_SERVICE_IDS is required")
+			return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvServiceIDs)
 		}
 	}
 
 	if cfg.Username == "" {
-		return nil, errors.New("OSB_USERNAME is required")
+		return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvUsername)
 	}
 	if cfg.Password == "" {
-		return nil, errors.New("OSB_PASSWORD is required")
+		return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvPassword)
+	}
+	if cfg.UsernameClaim == "" {
+		cfg.UsernameClaim = defaultUsernameClaim
 	}
 
 	if cfg.Namespace == "" {
-		return nil, errors.New("OSB_NAMESPACE is required")
+		return nil, fmt.Errorf("%s is required, but was not defined or is empty", EnvNamespace)
 	}
 
 	if cfg.ListenAddr == "" {
-		cfg.ListenAddr = ":8080"
+		cfg.ListenAddr = defaultHTTPListenAddr
 	}
 
-	rt, err := time.ParseDuration(getEnv("OSB_HTTP_READ_TIMEOUT"))
+	rt, err := getTimeoutFromEnv(getEnv, EnvHTTPReadTimeout)
 	if err != nil {
-		rt = 3 * time.Minute
+		return nil, err
 	}
 	cfg.ReadTimeout = rt
 
-	wt, err := time.ParseDuration(getEnv("OSB_HTTP_WRITE_TIMEOUT"))
+	wt, err := getTimeoutFromEnv(getEnv, EnvHTTPWriteTimeout)
 	if err != nil {
-		wt = 3 * time.Minute
+		return nil, err
 	}
 	cfg.WriteTimeout = wt
 
-	mhb, err := strconv.Atoi(getEnv("OSB_HTTP_MAX_HEADER_BYTES"))
-	if err != nil {
-		mhb = 1 << 20 // 1 MB
+	httpMaxHeaderBytes := getEnv(EnvHTTPMaxHeaderBytes)
+	if httpMaxHeaderBytes == "" {
+		cfg.MaxHeaderBytes = defaultHTTPMaxHeaderBytes
+	} else {
+		mhb, err := strconv.Atoi(httpMaxHeaderBytes)
+		if err != nil {
+			return nil, fmt.Errorf("%s is set to '%s', but a number was expected: %w", EnvHTTPMaxHeaderBytes, httpMaxHeaderBytes, err)
+		}
+		cfg.MaxHeaderBytes = mhb
 	}
-	cfg.MaxHeaderBytes = mhb
 
 	err = loadJWTSigningKeys(getEnv, cfg.JWKeyRegister)
 	if err != nil {
@@ -91,12 +146,25 @@ func ReadConfig(getEnv GetEnv) (*Config, error) {
 	return &cfg, nil
 }
 
+func getTimeoutFromEnv(getEnv GetEnv, timeoutName string) (time.Duration, error) {
+	timeout := getEnv(timeoutName)
+	if timeout == "" {
+		return defaultHTTPTimeout, nil
+	}
+
+	wt, err := time.ParseDuration(timeout)
+	if err != nil {
+		return 0, fmt.Errorf("%s is set to '%s', but that is not a valid time format: %w", timeoutName, timeout, err)
+	}
+	return wt, err
+}
+
 func loadJWTSigningKeys(getEnv GetEnv, keys jwt.KeyRegister) error {
-	err := loadKeysFromPath(getEnv, keys, "OSB_JWT_KEYS_JWK_URL", loadJWK)
+	err := loadKeysFromPath(getEnv, keys, EnvJWTKeyJWKURL, loadJWK)
 	if err != nil {
 		return err
 	}
-	err = loadKeysFromPath(getEnv, keys, "OSB_JWT_KEYS_PEM_URL", loadPEM)
+	err = loadKeysFromPath(getEnv, keys, EnvJWTKeyPEMURL, loadPEM)
 	return err
 }
 

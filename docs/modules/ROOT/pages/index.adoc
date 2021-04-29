@@ -14,30 +14,36 @@ NOTE: The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOUL
 |`~/.kube/config`
 |`/etc/osb/kubeconfig`
 
+|`OSB_NAMESPACE`
+|Which namespace the service broker shall use to create the resources.
+|_MUST be provided, no default_
+|`crossplane-service-broker`
+
 |`OSB_SERVICE_IDS`
 |Comma-separated list (no whitespace after comma!) of service ids available in your cluster.
 |_MUST be provided, no default value is defined._
 |`d7bb595e-abb4-49a6-97b3-a52c67150a34,5ba16ba2-7f07-4412-8fd2-0e9ac7acc831`
 
 |`OSB_USERNAME`
-|Username to connect to the service broker.
- Used for to authenticate all HTTP requests except to `/health`, `/metrics` and except if a https://tools.ietf.org/html/rfc7519[JWT] https://tools.ietf.org/html/rfc6750[`Bearer` token] is presented.
+|Username to use when connecting to this service broker.
+ Used to authenticate all HTTP requests, except to `/health`, `/metrics` and except if a https://tools.ietf.org/html/rfc7519[JWT] https://tools.ietf.org/html/rfc6750[`Bearer` token] is presented.
 |_MUST be provided, no default value is defined._
 |`service-catalogue`
 
 |`OSB_PASSWORD`
-|Password to connect to the service broker.
-Used for to authenticate all HTTP requests except to `/health`, `/metrics` and except if a `Bearer` token is presented.
+|Password to use when connecting to this service broker.
+Used to authenticate all HTTP requests except to `/health`, `/metrics` and except if a `Bearer` token is presented.
 |_MUST be provided, no default value is defined._
 |https://www.random.org/strings/?num=2&len=20&digits=on&upperalpha=on&loweralpha=on&unique=on&format=plain&rnd=new[Random String]
 
-|`OSB_NAMESPACE`
-|Which namespace the service broker shall use to create the resources.
-|_MUST be provided, no default_
-|`crossplane-service-broker`
+|`OSB_USERNAME_CLAIM`
+|If a https://tools.ietf.org/html/rfc7519[JWT] https://tools.ietf.org/html/rfc6750[`Bearer` token] is presented,
+then the value of this variable defines the claim that is considered to contain the username of the request principal.
+|`sub`
+|`email`
 
 |`OSB_HTTP_LISTEN_ADDR`
-|Which port to listen on
+|Which port to listen on for HTTP requests.
 |`:8080`
 |`:8000`
 

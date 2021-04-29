@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/pascaldekloe/jwt"
+	"github.com/vshn/crossplane-service-broker/pkg/config"
 )
 
 // Principal represents the entity (person or system) in who's name the current request is made.
@@ -14,9 +15,9 @@ type Principal struct {
 	Name string
 }
 
-// GetPrincipal extracts the Principal on who's name the given http.Request was made based on the information
+// FromRequest extracts the Principal on who's name the given http.Request was made based on the information
 // that was retrieved with the http.Request in the Authorization HTTP header.
-func GetPrincipal(req *http.Request) (Principal, error) {
+func FromRequest(cfg *config.Config, req *http.Request) (Principal, error) {
 	authenticationMethod := req.Context().Value(AuthenticationMethodPropertyName)
 	if authenticationMethod == nil {
 		return Principal{}, fmt.Errorf("likely an unauthorized request")
@@ -27,22 +28,19 @@ func GetPrincipal(req *http.Request) (Principal, error) {
 		return Principal{}, fmt.Errorf("can't convert authorization method to string")
 	}
 
-	var reader principalReader
 	switch {
 	case authenticationMethodStr == AuthorizationMethodBasicAuth:
-		reader = getPrincipalFromBasicAuth
+		return getPrincipalFromBasicAuth(req)
 	case authenticationMethodStr == AuthorizationMethodBearerToken:
-		reader = getPrincipalFromBearerToken
+		return getPrincipalFromBearerToken(cfg, req)
 	default:
 		return Principal{}, fmt.Errorf("unknown authorication format '%s'", authenticationMethodStr)
 	}
-
-	return reader(req)
 }
 
 // getPrincipalFromBearerToken extracts the Principal on who's name the given http.Request was made based on the
 // Bearer token that was retrieved with the http.Request in the Authorization HTTP header.
-func getPrincipalFromBearerToken(req *http.Request) (Principal, error) {
+func getPrincipalFromBearerToken(cfg *config.Config, req *http.Request) (Principal, error) {
 	token := req.Context().Value(TokenPropertyName)
 	if token == nil {
 		return Principal{}, fmt.Errorf("principal token not set")
@@ -53,10 +51,9 @@ func getPrincipalFromBearerToken(req *http.Request) (Principal, error) {
 		return Principal{}, fmt.Errorf("principal token is invalid")
 	}
 
-	claimName := "username" // TODO move hardcoded to configuration
-	username, ok := claim.String(claimName)
+	username, ok := claim.String(cfg.UsernameClaim)
 	if !ok {
-		return Principal{}, fmt.Errorf("principal token contains no claim named '%s'", claimName)
+		return Principal{}, fmt.Errorf("principal token contains no claim named '%s'", cfg.UsernameClaim)
 	}
 
 	return Principal{Name: username}, nil
