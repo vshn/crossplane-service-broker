@@ -67,6 +67,7 @@ const (
 	// EnvHTTPMaxHeaderBytes sets the maximum header size for HTTP requests.
 	EnvHTTPMaxHeaderBytes = "OSB_HTTP_MAX_HEADER_BYTES"
 
+	// EnvJWTKeyJWKURL sets the URL of a JWK file, which is used to validate the signatures of the JWT Bearer Tokens.
 	EnvJWTKeyJWKURL = "OSB_JWT_KEYS_JWK_URL"
 
 	// EnvJWTKeyPEMURL sets the URL of a PEM file, which is used to validate the signatures of the JWT Bearer Tokens.

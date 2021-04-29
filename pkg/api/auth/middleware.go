@@ -25,29 +25,29 @@ type contextKey string
 
 const (
 	// AuthenticationMethodPropertyName allows to query the HTTP context for the authentication method used.
-	// See AuthorizationMethodBearerToken and AuthorizationMethodBasicAuth,
+	// See AuthenticationMethodBearerToken and AuthenticationMethodBasicAuth,
 	// as well as Context() on http.Request.
 	AuthenticationMethodPropertyName contextKey = "authentication-method"
 
-	// AuthorizationMethodBearerToken should be used to compare with the value returned by AuthenticationMethodPropertyName.
+	// AuthenticationMethodBearerToken should be used to compare with the value returned by AuthenticationMethodPropertyName.
 	//
 	//   func(w http.ResponseWriter, r *http.Request) {
 	//     method := r.Context().Value(auth.UserPropertyName);
-	//     if method == auth.AuthorizationMethodBearerToken {
+	//     if method == auth.AuthenticationMethodBearerToken {
 	//       // Bearer Token auth
 	//     }
 	//   }
-	AuthorizationMethodBearerToken = "Bearer"
+	AuthenticationMethodBearerToken = "Bearer"
 
-	// AuthorizationMethodBasicAuth should be used to compare with the value returned by AuthenticationMethodPropertyName:
+	// AuthenticationMethodBasicAuth should be used to compare with the value returned by AuthenticationMethodPropertyName:
 	//
 	//   func(w http.ResponseWriter, r *http.Request) {
 	//     method := r.Context().Value(auth.UserPropertyName);
-	//     if method == auth.AuthorizationMethodBasicAuth {
+	//     if method == auth.AuthenticationMethodBasicAuth {
 	//       // Basic auth
 	//     }
 	//   }
-	AuthorizationMethodBasicAuth = "Basic"
+	AuthenticationMethodBasicAuth = "Basic"
 )
 
 var (
@@ -103,12 +103,12 @@ func (a AuthenticationMiddleware) Handler(handler http.Handler) http.Handler {
 }
 
 func (a AuthenticationMiddleware) handleBasicAuth(w http.ResponseWriter, r *http.Request, handler http.Handler) {
-	ctx := context.WithValue(r.Context(), AuthenticationMethodPropertyName, AuthorizationMethodBasicAuth)
+	ctx := context.WithValue(r.Context(), AuthenticationMethodPropertyName, AuthenticationMethodBasicAuth)
 	a.basicAuth.Handler(handler).ServeHTTP(w, r.WithContext(ctx))
 }
 
 func (a AuthenticationMiddleware) handleBearerToken(w http.ResponseWriter, r *http.Request, handler http.Handler) {
-	ctx := context.WithValue(r.Context(), AuthenticationMethodPropertyName, AuthorizationMethodBearerToken)
+	ctx := context.WithValue(r.Context(), AuthenticationMethodPropertyName, AuthenticationMethodBearerToken)
 	a.bearerTokenAuth.Handler(handler).ServeHTTP(w, r.WithContext(ctx))
 }
 

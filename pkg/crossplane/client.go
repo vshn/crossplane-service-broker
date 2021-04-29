@@ -11,6 +11,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
 	crossplane "github.com/crossplane/crossplane/apis"
 	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
+	"github.com/vshn/crossplane-service-broker/pkg/api/auth"
+	"github.com/vshn/crossplane-service-broker/pkg/config"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,9 +33,8 @@ var errInstanceNotFound = errors.New("instance not found")
 
 // Crossplane client to access crossplane resources.
 type Crossplane struct {
-	client     client.Client
-	serviceIDs []string
-	namespace  string
+	config *config.Config
+	client client.Client
 }
 
 // Register configures the given runtime.Scheme with all required resources
@@ -57,14 +58,14 @@ func Register(scheme *runtime.Scheme) error {
 }
 
 // New instantiates a crossplane client.
-func New(serviceIDs []string, namespace string, config *rest.Config) (*Crossplane, error) {
+func New(brokerConfig *config.Config, restConfig *rest.Config) (*Crossplane, error) {
 	scheme := runtime.NewScheme()
 	if err := Register(scheme); err != nil {
 		return nil, err
 	}
 
 	// TODO(mw): feels a little unnecessary to use controller-runtime just for this. Should we extract the code we need?
-	k, err := client.New(config, client.Options{
+	k, err := client.New(restConfig, client.Options{
 		Scheme: scheme,
 	})
 	if err != nil {
@@ -72,9 +73,8 @@ func New(serviceIDs []string, namespace string, config *rest.Config) (*Crossplan
 	}
 
 	cp := Crossplane{
-		client:     k,
-		serviceIDs: serviceIDs,
-		namespace:  namespace,
+		client: k,
+		config: brokerConfig,
 	}
 
 	return &cp, nil
@@ -93,7 +93,7 @@ type ServiceXRD struct {
 func (cp Crossplane) ServiceXRDs(rctx *reqcontext.ReqContext) ([]*ServiceXRD, error) {
 	xrds := &xv1.CompositeResourceDefinitionList{}
 
-	req, err := labels.NewRequirement(ServiceIDLabel, selection.In, cp.serviceIDs)
+	req, err := labels.NewRequirement(ServiceIDLabel, selection.In, cp.config.ServiceIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func (cp Crossplane) Instance(rctx *reqcontext.ReqContext, id string, plan *Plan
 // It needs to iterate through all plans and fetch the instance using the supplied GVK.
 // There's probably an optimization to be done here, as this seems fairly shitty, but for now it works.
 func (cp Crossplane) FindInstanceWithoutPlan(rctx *reqcontext.ReqContext, id string) (inst *Instance, p *Plan, ok bool, err error) {
-	plans, err := cp.Plans(rctx, cp.serviceIDs)
+	plans, err := cp.Plans(rctx, cp.config.ServiceIDs)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -231,12 +231,9 @@ func (cp Crossplane) FindInstanceWithoutPlan(rctx *reqcontext.ReqContext, id str
 
 // CreateInstance sets a new composite with assigned plan and params up.
 func (cp Crossplane) CreateInstance(rctx *reqcontext.ReqContext, id string, plan *Plan, params map[string]interface{}) error {
-	l := map[string]string{
-		InstanceIDLabel: id,
-	}
-	// Copy relevant labels from plan
-	for _, name := range []string{ServiceIDLabel, ServiceNameLabel, PlanNameLabel, ClusterLabel, SLALabel} {
-		l[name] = plan.Composition.Labels[name]
+	l, err := cp.prepareLabels(rctx, id, plan, params)
+	if err != nil {
+		return err
 	}
 
 	gvk, err := plan.GVK()
@@ -249,18 +246,39 @@ func (cp Crossplane) CreateInstance(rctx *reqcontext.ReqContext, id string, plan
 	cmp.SetCompositionReference(&corev1.ObjectReference{
 		Name: plan.Composition.Name,
 	})
-	// slightly ugly having this service specific label setting leaking out to the generic code. Can be cleaned up later
-	// in case more specific code is needed.
-	if params[instanceParamsParentReferenceName] != nil {
-		// Additionally set parent reference in a label so we can search for it later.
-		l[ParentIDLabel] = params[instanceParamsParentReferenceName].(string)
-	}
+
 	if err := fieldpath.Pave(cmp.Object).SetValue(instanceSpecParamsPath, params); err != nil {
 		return err
 	}
 	cmp.SetLabels(l)
 	rctx.Logger.Debug("create-instance", lager.Data{"instance": cmp})
 	return cp.client.Create(rctx.Context, cmp)
+}
+
+func (cp Crossplane) prepareLabels(rctx *reqcontext.ReqContext, id string, plan *Plan, params map[string]interface{}) (map[string]string, error) {
+	principal, err := auth.PrincipalFromContext(rctx.Context, cp.config)
+	if err != nil {
+		return nil, err
+	}
+
+	l := map[string]string{
+		InstanceIDLabel: id,
+		PrincipalLabel:  string(principal),
+	}
+
+	// Copy relevant labels from plan
+	planLabels := []string{ServiceIDLabel, ServiceNameLabel, PlanNameLabel, ClusterLabel, SLALabel}
+	for _, name := range planLabels {
+		l[name] = plan.Composition.Labels[name]
+	}
+
+	// slightly ugly having this service specific label setting leaking out to the generic code. Can be cleaned up later
+	// in case more specific code is needed.
+	if params[instanceParamsParentReferenceName] != nil {
+		// Additionally set parent reference in a label so we can search for it later.
+		l[ParentIDLabel] = params[instanceParamsParentReferenceName].(string)
+	}
+	return l, nil
 }
 
 // UpdateInstance updates `instance` on k8s.

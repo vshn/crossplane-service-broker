@@ -41,6 +41,8 @@ const (
 	UpdatableLabel = SynToolsBase + "/updatable"
 	// DeletedLabel marks an object as deleted to clean up
 	DeletedLabel = SynToolsBase + "/deleted"
+	// PrincipalLabel stores the username of the entity (person or system) that created the respective resource
+	PrincipalLabel = SynToolsBase + "/principal"
 
 	// SLAPremium represents the string for the premium SLA
 	SLAPremium = "premium"

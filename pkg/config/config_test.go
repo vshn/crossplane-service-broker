@@ -16,14 +16,14 @@ func Test_ReadConfig(t *testing.T) {
 		"serviceIDs required": {
 			env:    map[string]string{},
 			config: nil,
-			err:    "OSB_SERVICE_IDS is required",
+			err:    "OSB_SERVICE_IDS is required, but was not defined or is empty",
 		},
 		"username required": {
 			env: map[string]string{
 				"OSB_SERVICE_IDS": "1,2,3",
 			},
 			config: nil,
-			err:    "OSB_USERNAME is required",
+			err:    "OSB_USERNAME is required, but was not defined or is empty",
 		},
 		"password required": {
 			env: map[string]string{
@@ -31,7 +31,7 @@ func Test_ReadConfig(t *testing.T) {
 				"OSB_USERNAME":    "user",
 			},
 			config: nil,
-			err:    "OSB_PASSWORD is required",
+			err:    "OSB_PASSWORD is required, but was not defined or is empty",
 		},
 		"namespace required": {
 			env: map[string]string{
@@ -40,7 +40,7 @@ func Test_ReadConfig(t *testing.T) {
 				"OSB_PASSWORD":    "pw",
 			},
 			config: nil,
-			err:    "OSB_NAMESPACE is required",
+			err:    "OSB_NAMESPACE is required, but was not defined or is empty",
 		},
 		"defaults configured": {
 			env: map[string]string{
@@ -54,6 +54,7 @@ func Test_ReadConfig(t *testing.T) {
 				ListenAddr:     ":8080",
 				Username:       "user",
 				Password:       "pw",
+				UsernameClaim:  "sub",
 				Namespace:      "test",
 				ReadTimeout:    180 * time.Second,
 				WriteTimeout:   180 * time.Second,

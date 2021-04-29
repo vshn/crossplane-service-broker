@@ -64,7 +64,7 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 
 	router := mux.NewRouter()
 
-	cp, err := crossplane.New(cfg.ServiceIDs, cfg.Namespace, rConfig)
+	cp, err := crossplane.New(cfg, rConfig)
 	if err != nil {
 		return err
 	}

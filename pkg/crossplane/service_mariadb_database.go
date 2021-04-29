@@ -118,7 +118,7 @@ func (msb MariadbDatabaseServiceBinder) Unbind(ctx context.Context, bindingID st
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf(secretName, bindingID),
-			Namespace: msb.cp.namespace,
+			Namespace: msb.cp.config.Namespace,
 		},
 	}
 	return msb.cp.client.Delete(ctx, secret)
@@ -193,7 +193,7 @@ func (msb MariadbDatabaseServiceBinder) createBinding(ctx context.Context, bindi
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf(secretName, bindingID),
-			Namespace: msb.cp.namespace,
+			Namespace: msb.cp.config.Namespace,
 			Labels:    labels,
 		},
 		Data: map[string][]byte{

@@ -1,9 +1,7 @@
 package auth
 
 import (
-	"bytes"
 	"context"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,12 +21,12 @@ var emptyEnv = map[string]string{
 func Test_BasicPrincipal(t *testing.T) {
 	cfg := givenConfiguration(t, emptyEnv)
 	givenUsername := "expectedUsername"
-	req := givenAuthenticatedRequest(t, AuthorizationMethodBasicAuth, UserPropertyName, givenUsername)
+	ctx := givenAuthenticatedContext(AuthenticationMethodBasicAuth, UserPropertyName, givenUsername)
 
-	actualPrincipal, err := FromRequest(cfg, req)
+	actualPrincipal, err := PrincipalFromContext(ctx, cfg)
 
 	assert.NoError(t, err)
-	assert.Equal(t, givenUsername, actualPrincipal.Name)
+	assert.Equal(t, givenUsername, string(actualPrincipal))
 }
 
 func Test_BearerTokenPrincipal(t *testing.T) {
@@ -39,12 +37,12 @@ func Test_BearerTokenPrincipal(t *testing.T) {
 			cfg.UsernameClaim: givenUsername,
 		},
 	}
-	req := givenAuthenticatedRequest(t, AuthorizationMethodBearerToken, TokenPropertyName, &givenToken)
+	ctx := givenAuthenticatedContext(AuthenticationMethodBearerToken, TokenPropertyName, &givenToken)
 
-	actualPrincipal, err := FromRequest(cfg, req)
+	actualPrincipal, err := PrincipalFromContext(ctx, cfg)
 
 	assert.NoError(t, err)
-	assert.Equal(t, givenUsername, actualPrincipal.Name)
+	assert.Equal(t, givenUsername, string(actualPrincipal))
 }
 
 func givenConfiguration(t *testing.T, env map[string]string) *config.Config {
@@ -55,10 +53,9 @@ func givenConfiguration(t *testing.T, env map[string]string) *config.Config {
 	return cfg
 }
 
-func givenAuthenticatedRequest(t *testing.T, authMethod interface{}, expectedPrincipalKey interface{}, expectedPrincipalValue interface{}) *http.Request {
-	req, err := http.NewRequest("GET", "/whatever", &bytes.Buffer{})
-	require.NoError(t, err)
-	req = req.WithContext(context.WithValue(req.Context(), AuthenticationMethodPropertyName, authMethod))
-	req = req.WithContext(context.WithValue(req.Context(), expectedPrincipalKey, expectedPrincipalValue))
-	return req
+func givenAuthenticatedContext(authMethod interface{}, expectedPrincipalKey interface{}, expectedPrincipalValue interface{}) context.Context {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, AuthenticationMethodPropertyName, authMethod)
+	ctx = context.WithValue(ctx, expectedPrincipalKey, expectedPrincipalValue)
+	return ctx
 }
