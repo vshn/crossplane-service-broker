@@ -10,6 +10,16 @@ import (
 	"net/http"
 )
 
+// UserPropertyName allows to query the HTTP context for the current user's name.
+// See Context() on http.Request.
+//
+//   func(w http.ResponseWriter, r *http.Request) {
+//     user := r.Context().Value(auth.UserPropertyName);
+//     fmt.Fprintf(w, "This is an authenticated request")
+//     fmt.Fprintf(w, "User name: '%s'\n", user)
+//   }
+const UserPropertyName contextKey = "user"
+
 // Basic represents a mux middleware that, given a http.Request, checks whether the Authorization header
 // contains any of the given Credentials.
 type Basic struct {
@@ -22,15 +32,10 @@ type Credential struct {
 	password []byte
 }
 
-// UserPropertyName allows to query the HTTP context for the current user's name.
-// See Context() on http.Request.
-//
-//   func(w http.ResponseWriter, r *http.Request) {
-//     user := r.Context().Value(auth.UserPropertyName);
-//     fmt.Fprintf(w, "This is an authenticated request")
-//     fmt.Fprintf(w, "User name: '%s'\n", user)
-//   }
-const UserPropertyName contextKey = "user"
+func (c Credential) isAuthorized(uChecksum [32]byte, pChecksum [32]byte) bool {
+	return subtle.ConstantTimeCompare(c.username, uChecksum[:]) == 1 &&
+		subtle.ConstantTimeCompare(c.password, pChecksum[:]) == 1
+}
 
 // NewCredential turns a username and a password into a Credential.
 // The username and the password are hashed using sha256.Sum256,
@@ -77,9 +82,4 @@ func (b Basic) authorized(r *http.Request) (*http.Request, bool) {
 		}
 	}
 	return r, false
-}
-
-func (c Credential) isAuthorized(uChecksum [32]byte, pChecksum [32]byte) bool {
-	return subtle.ConstantTimeCompare(c.username, uChecksum[:]) == 1 &&
-		subtle.ConstantTimeCompare(c.password, pChecksum[:]) == 1
 }

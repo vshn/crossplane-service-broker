@@ -11,11 +11,13 @@ import (
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
+	"github.com/pascaldekloe/jwt"
 	"github.com/pivotal-cf/brokerapi/v8/domain"
 	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 	"github.com/pivotal-cf/brokerapi/v8/middlewares"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"github.com/vshn/crossplane-service-broker/pkg/api/auth"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,6 +34,10 @@ type EnvTestSuite struct {
 	Crossplane *crossplane.Crossplane
 }
 
+func Test_BrokerAPI(t *testing.T) {
+	suite.Run(t, new(EnvTestSuite))
+}
+
 func (ts *EnvTestSuite) SetupSuite() {
 	m, logger, cp, err := integration.SetupManager(ts.T())
 	ts.Require().NoError(err, "unable to setup integration test manager")
@@ -43,11 +49,14 @@ func (ts *EnvTestSuite) SetupSuite() {
 }
 
 func (ts *EnvTestSuite) TearDownSuite() {
-	ts.Manager.Cleanup()
+	_ = ts.Manager.Cleanup()
 }
 
-func Test_BrokerAPI(t *testing.T) {
-	suite.Run(t, new(EnvTestSuite))
+func (ts *EnvTestSuite) givenContext() context.Context {
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
+	ctx = context.WithValue(ctx, auth.AuthenticationMethodPropertyName, auth.AuthenticationMethodBearerToken)
+	ctx = context.WithValue(ctx, auth.TokenPropertyName, &jwt.Claims{Set: map[string]interface{}{"sub": "username"}})
+	return ctx
 }
 
 func (ts *EnvTestSuite) TestBrokerAPI_Services() {
@@ -131,7 +140,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		details      domain.ProvisionDetails
 		asyncAllowed bool
 	}
-	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
 
 	tests := []struct {
 		name      string
@@ -143,7 +151,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		{
 			name: "requires async",
 			args: args{
-				ctx:          ctx,
+				ctx:          ts.givenContext(),
 				instanceID:   "1",
 				details:      domain.ProvisionDetails{},
 				asyncAllowed: false,
@@ -157,7 +165,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		{
 			name: "specified plan must exist",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "1",
 				details: domain.ProvisionDetails{
 					PlanID: "1-1",
@@ -173,7 +181,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		{
 			name: "creates a redis instance",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "1",
 				details: domain.ProvisionDetails{
 					PlanID:    "1-1",
@@ -193,7 +201,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		{
 			name: "returns already exists if instance already exists",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "1",
 				details: domain.ProvisionDetails{
 					PlanID:    "1-1",
@@ -217,7 +225,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		{
 			name: "creates a mariadb instance",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "1",
 				details: domain.ProvisionDetails{
 					PlanID:    "1-1",
@@ -237,7 +245,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		{
 			name: "creates a mariadb database instance",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "2",
 				details: domain.ProvisionDetails{
 					PlanID:        "2-1",
@@ -260,7 +268,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		{
 			name: "creates a mariadb database instance referencing inexistent parent",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "3",
 				details: domain.ProvisionDetails{
 					PlanID:        "2-1",
@@ -310,8 +318,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Deprovision() {
 		details      domain.DeprovisionDetails
 		asyncAllowed bool
 	}
-	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
-
 	tests := []struct {
 		name          string
 		args          args
@@ -323,7 +329,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Deprovision() {
 		{
 			name: "requires instance to exist before deprovisioning",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "1-1-1",
 				details: domain.DeprovisionDetails{
 					PlanID:    "1-1",
@@ -344,7 +350,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Deprovision() {
 		{
 			name: "removes instance",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "1",
 				details: domain.DeprovisionDetails{
 					PlanID:    "1-1",
@@ -363,7 +369,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Deprovision() {
 			},
 			customCheckFn: func(t *testing.T, c client.Client) {
 				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
-				_, err := integration.GetInstance(ctx, c, servicePlan, "1")
+				_, err := integration.GetInstance(ts.givenContext(), c, servicePlan, "1")
 				ts.Assert().EqualError(err, `compositeredisinstances.syn.tools "1" not found`)
 			},
 			want:    &domain.DeprovisionServiceSpec{IsAsync: false},
@@ -372,7 +378,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Deprovision() {
 		{
 			name: "prevents removing instance if Deprovisionable returns an error",
 			args: args{
-				ctx:        ctx,
+				ctx:        ts.givenContext(),
 				instanceID: "1",
 				details: domain.DeprovisionDetails{
 					PlanID:    "1-1",

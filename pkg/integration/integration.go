@@ -13,6 +13,7 @@ import (
 	"github.com/go-logr/zapr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vshn/crossplane-service-broker/pkg/config"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -266,7 +267,8 @@ func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 	}
 
 	// unfortunately can't be set via an option on the manager as BinaryAssetsDir is not exposed.
-	os.Setenv("KUBEBUILDER_ASSETS", "../../testdata/bin")
+	err := os.Setenv("KUBEBUILDER_ASSETS", "../../testdata/bin")
+	require.NoError(t, err)
 
 	m, err := integration.New(nil,
 		integration.WithCRDPaths("../../testdata/crds"),
@@ -285,7 +287,8 @@ func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 
 	require.NoError(t, CreateObjects(context.Background(), []client.Object{newTestNamespace(TestNamespace)})(m.GetClient()))
 
-	cp, err := crossplane.New([]string{"1", "2"}, TestNamespace, m.GetConfig())
+	brokerConfig := &config.Config{ServiceIDs: []string{"1", "2"}, Namespace: TestNamespace, UsernameClaim: "sub"}
+	cp, err := crossplane.New(brokerConfig, m.GetConfig())
 	if err != nil {
 		return nil, nil, nil, err
 	}

@@ -64,7 +64,7 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 
 	router := mux.NewRouter()
 
-	cp, err := crossplane.New(cfg.ServiceIDs, cfg.Namespace, rConfig)
+	cp, err := crossplane.New(cfg, rConfig)
 	if err != nil {
 		return err
 	}
@@ -72,8 +72,7 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 	b := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}))
 
 	serviceBrokerCredential := auth.SingleCredential(cfg.Username, cfg.Password)
-	jwtKeys := &cfg.JWKeyRegister
-	a := api.New(b, serviceBrokerCredential, jwtKeys, logger.WithData(lager.Data{"component": "api"}))
+	a := api.New(b, serviceBrokerCredential, &cfg.JWKeyRegister, logger.WithData(lager.Data{"component": "api"}))
 	router.NewRoute().Handler(a)
 
 	srv := http.Server{
