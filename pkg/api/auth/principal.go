@@ -13,7 +13,7 @@ import (
 // For example, a system might send a request in the name of a person.
 type Principal string
 
-// PrincipalFromContext extracts the Principal on who's name the given http.Request was made based on the information
+// PrincipalFromContext extracts the Principal on whose name the given http.Request was made based on the information
 // that was retrieved with the http.Request in the Authorization HTTP header.
 func PrincipalFromContext(ctx context.Context, cfg *config.Config) (Principal, error) {
 	authenticationMethod := ctx.Value(AuthenticationMethodPropertyName)
@@ -36,7 +36,7 @@ func PrincipalFromContext(ctx context.Context, cfg *config.Config) (Principal, e
 	}
 }
 
-// getPrincipalFromBearerToken extracts the Principal on who's name the given http.Request was made based on the
+// getPrincipalFromBearerToken extracts the Principal on whose name the given http.Request was made based on the
 // Bearer token that was retrieved with the http.Request in the Authorization HTTP header.
 func getPrincipalFromBearerToken(ctx context.Context, cfg *config.Config) (Principal, error) {
 	token := ctx.Value(TokenPropertyName)
@@ -57,7 +57,7 @@ func getPrincipalFromBearerToken(ctx context.Context, cfg *config.Config) (Princ
 	return Principal(username), nil
 }
 
-// getPrincipalFromBasicAuth extracts the Principal on who's name the given http.Request was made based on the
+// getPrincipalFromBasicAuth extracts the Principal on whose name the given http.Request was made based on the
 // Basic auth username that was retrieved with the http.Request in the Authorization HTTP header.
 func getPrincipalFromBasicAuth(ctx context.Context) (Principal, error) {
 	userName := ctx.Value(UserPropertyName)

@@ -37,8 +37,7 @@ Used to authenticate all HTTP requests except to `/health`, `/metrics` and excep
 |https://www.random.org/strings/?num=2&len=20&digits=on&upperalpha=on&loweralpha=on&unique=on&format=plain&rnd=new[Random String]
 
 |`OSB_USERNAME_CLAIM`
-|If a https://tools.ietf.org/html/rfc7519[JWT] https://tools.ietf.org/html/rfc6750[`Bearer` token] is presented,
-then the value of this variable defines the claim that is considered to contain the username of the request principal.
+|If a https://tools.ietf.org/html/rfc7519[JWT] https://tools.ietf.org/html/rfc6750[`Bearer` token] is presented, then the value of this variable defines the claim that is considered to contain the username of the request principal.
 |`sub`
 |`email`
 
