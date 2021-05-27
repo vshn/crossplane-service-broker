@@ -13,7 +13,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/pascaldekloe/jwt v1.10.0
-	github.com/pivotal-cf/brokerapi/v8 v8.0.0
+	github.com/pivotal-cf/brokerapi/v8 v8.1.0
 	github.com/prometheus/client_golang v1.10.0
 	github.com/stretchr/testify v1.7.0
 	github.com/ulikunitz/xz v0.5.8 // indirect
