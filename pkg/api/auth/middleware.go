@@ -51,6 +51,10 @@ const (
 )
 
 var (
+	totalRequestCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "osb_total_broker_api_requests_total",
+		Help: "The total number of processed service broker api requests, not including healthz and metrics requests.",
+	})
 	failedAuthenticationCounter = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "osb_failed_authentication_attempts_total",
 		Help: "The total number of failed authentication attempts.",
@@ -75,6 +79,8 @@ func New(credentials []Credential, keys *jwt.KeyRegister) AuthenticationMiddlewa
 // Handler represents a mux.MiddlewareFunc
 func (a AuthenticationMiddleware) Handler(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		totalRequestCounter.Inc()
+
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			unauthorized(w)
