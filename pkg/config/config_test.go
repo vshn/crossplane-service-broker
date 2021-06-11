@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/pascaldekloe/jwt"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -73,6 +74,7 @@ func Test_ReadConfig(t *testing.T) {
 				ReadTimeout:    defaultHTTPTimeout,
 				WriteTimeout:   defaultHTTPTimeout,
 				MaxHeaderBytes: defaultHTTPMaxHeaderBytes,
+				JWKeyRegister:  &jwt.KeyRegister{},
 			},
 			err: "",
 		},
@@ -93,6 +95,7 @@ func Test_ReadConfig(t *testing.T) {
 				ReadTimeout:    defaultHTTPTimeout,
 				WriteTimeout:   defaultHTTPTimeout,
 				MaxHeaderBytes: defaultHTTPMaxHeaderBytes,
+				JWKeyRegister:  &jwt.KeyRegister{},
 			},
 			err: "",
 		},

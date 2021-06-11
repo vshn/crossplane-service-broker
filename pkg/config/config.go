@@ -21,7 +21,7 @@ type Config struct {
 	Username       string
 	Password       string
 	UsernameClaim  string
-	JWKeyRegister  jwt.KeyRegister
+	JWKeyRegister  *jwt.KeyRegister
 	Namespace      string
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
@@ -31,7 +31,7 @@ type Config struct {
 // GetEnv is an interface that allows to get variables from the environment
 type GetEnv func(string) string
 
-type keyLoadingFun func(keys jwt.KeyRegister, content []byte) (int, error)
+type keyLoadingFun func(keys *jwt.KeyRegister, content []byte) (int, error)
 
 const (
 	// EnvKubeconfig is used to configure the internal K8s client
@@ -88,6 +88,7 @@ func ReadConfig(getEnv GetEnv) (*Config, error) {
 		UsernameClaim: getEnv(EnvUsernameClaim),
 		Namespace:     getEnv(EnvNamespace),
 		ListenAddr:    getEnv(EnvHTTPListenAddr),
+		JWKeyRegister: &jwt.KeyRegister{},
 	}
 
 	ids, err := getServiceIDs(getEnv)
@@ -194,7 +195,7 @@ func getTimeout(getEnv GetEnv, timeoutName string) (time.Duration, error) {
 	return wt, err
 }
 
-func loadJWTSigningKeys(getEnv GetEnv, keys jwt.KeyRegister) error {
+func loadJWTSigningKeys(getEnv GetEnv, keys *jwt.KeyRegister) error {
 	err := loadKeysFromPath(getEnv, keys, EnvJWTKeyJWKURL, loadJWK)
 	if err != nil {
 		return err
@@ -203,7 +204,7 @@ func loadJWTSigningKeys(getEnv GetEnv, keys jwt.KeyRegister) error {
 	return err
 }
 
-func loadKeysFromPath(getEnv GetEnv, keys jwt.KeyRegister, envVarName string, loadFunc keyLoadingFun) error {
+func loadKeysFromPath(getEnv GetEnv, keys *jwt.KeyRegister, envVarName string, loadFunc keyLoadingFun) error {
 	envVarValue := getEnv(envVarName)
 	if envVarValue == "" {
 		return nil
@@ -274,10 +275,10 @@ func loadContentFromFile(fileURL *url.URL) ([]byte, error) {
 	return content, nil
 }
 
-func loadJWK(keys jwt.KeyRegister, content []byte) (int, error) {
+func loadJWK(keys *jwt.KeyRegister, content []byte) (int, error) {
 	return keys.LoadJWK(content)
 }
 
-func loadPEM(keys jwt.KeyRegister, content []byte) (int, error) {
+func loadPEM(keys *jwt.KeyRegister, content []byte) (int, error) {
 	return keys.LoadPEM(content, []byte{})
 }
