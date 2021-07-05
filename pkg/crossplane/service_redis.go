@@ -57,7 +57,7 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	if err != nil {
 		return nil, err
 	}
-	sentinelPort, err := strconv.Atoi(string(s.Data["sentinelPort"]))
+	sentinelPort, err := strconv.Atoi(string(s.Data[SentinelPortKey]))
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +78,20 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 				"port": port,
 			},
 		},
+	}
+	mbytes, ok := s.Data[MetricsPortKey]
+	if ok {
+		mp, err := strconv.Atoi(string(mbytes))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse metrics port: %w", err)
+		}
+		creds["metrics"] = []string{
+			fmt.Sprintf("http://%s:%d/metrics/haproxy-0", endpoint, mp),
+			fmt.Sprintf("http://%s:%d/metrics/haproxy-1", endpoint, mp),
+			fmt.Sprintf("http://%s:%d/metrics/redis-0", endpoint, mp),
+			fmt.Sprintf("http://%s:%d/metrics/redis-1", endpoint, mp),
+			fmt.Sprintf("http://%s:%d/metrics/redis-2", endpoint, mp),
+		}
 	}
 
 	return creds, nil

@@ -899,6 +899,67 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 			wantErr:            nil,
 		},
 		{
+			name: "creates a redis instance with monitoring endpoints and binds it",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.BindDetails{
+					PlanID:    "1-1",
+					ServiceID: "1",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "", "")
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					servicePlan.Composition,
+					instance,
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"sentinelPort": "21234",
+						"metricsPort":  "25197",
+					}),
+				}
+				return func(c client.Client) error {
+					return integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want: &domain.Binding{
+				IsAsync: false,
+				Credentials: crossplane.Credentials{
+					"host":     "localhost",
+					"master":   "redis://1-1-1",
+					"password": "supersecret",
+					"port":     1234,
+					"sentinels": []crossplane.Credentials{
+						{
+							"host": "localhost",
+							"port": 21234,
+						},
+					},
+					"servers": []crossplane.Credentials{
+						{
+							"host": "localhost",
+							"port": 1234,
+						},
+					},
+					"metrics": []string{
+						"http://localhost:25197/metrics/haproxy-0",
+						"http://localhost:25197/metrics/haproxy-1",
+						"http://localhost:25197/metrics/redis-0",
+						"http://localhost:25197/metrics/redis-1",
+						"http://localhost:25197/metrics/redis-2",
+					},
+				},
+			},
+			wantComparisonFunc: assert.Equal,
+			wantErr:            nil,
+		},
+		{
 			name: "creates a redis instance and binds it asynchronously",
 			args: args{
 				ctx:        ctx,
@@ -1014,6 +1075,87 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 			},
 			want:    nil,
 			wantErr: errors.New(`service MariaDB Galera Cluster is not bindable. You can create a bindable database on this cluster using cf create-service mariadb-k8s-database default my-mariadb-db -c '{"parent_reference": "1-1-1"}' (correlation-id: "corrid")`),
+		},
+		{
+			name: "creates a mariadb instance with metrics endpoints and binds a database instance to it",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-2-1",
+				bindingID:  "4",
+				details: domain.BindDetails{
+					PlanID:    "2-1",
+					ServiceID: "2",
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBService, "", "")
+				dbServicePlan := integration.NewTestServicePlan("2", "2-1", crossplane.MariaDBDatabaseService)
+				dbInstance := integration.NewTestInstance("1-2-1", dbServicePlan, crossplane.MariaDBDatabaseService, "", "1-1-1")
+				objs := []client.Object{
+					integration.NewTestService("1", crossplane.MariaDBService),
+					integration.NewTestService("2", crossplane.MariaDBDatabaseService),
+					servicePlan.Composition,
+					instance,
+					dbServicePlan.Composition,
+					dbInstance,
+					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
+						xrv1.ResourceCredentialsSecretPortKey:     "1234",
+						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
+						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
+						"metricsPort": "25197",
+					}),
+				}
+				return func(c client.Client) error {
+					if err := integration.UpdateInstanceConditions(ctx, c, servicePlan, instance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable); err != nil {
+						return err
+					}
+					return integration.UpdateInstanceConditions(ctx, c, dbServicePlan, dbInstance, xrv1.TypeReady, corev1.ConditionTrue, xrv1.ReasonAvailable)
+				}, objs
+			},
+			want: &domain.Binding{
+				IsAsync: false,
+				Credentials: crossplane.Credentials{
+					"host":         "localhost",
+					"hostname":     "localhost",
+					"port":         int32(1234),
+					"name":         "1-2-1",
+					"database":     "1-2-1",
+					"user":         nil,
+					"password":     "***",
+					"database_uri": "***",
+					"uri":          "***",
+					"jdbcUrl":      "***",
+					"metrics": []string{
+						"http://localhost:25197/metrics/haproxy-0",
+						"http://localhost:25197/metrics/haproxy-1",
+						"http://localhost:25197/metrics/mariadb-0",
+						"http://localhost:25197/metrics/mariadb-1",
+						"http://localhost:25197/metrics/mariadb-2",
+					},
+				},
+			},
+			wantComparisonFunc: func(t assert.TestingT, expected, actual interface{}, msgAndArgs ...interface{}) bool {
+				want := expected.(domain.Binding)
+				got := actual.(domain.Binding)
+
+				ts.Assert().Equal(want.IsAsync, got.IsAsync, "asynchronous does not match")
+
+				wantCreds := want.Credentials.(crossplane.Credentials)
+				gotCreds := got.Credentials.(crossplane.Credentials)
+
+				ts.Assert().Equal(len(wantCreds), len(gotCreds), "number of credentials should be equal")
+				for k, v := range wantCreds {
+					if v == "***" {
+						assert.Contains(t, gotCreds, k, k)
+					} else {
+						ts.Assert().Equal(v, gotCreds[k], k)
+					}
+				}
+				return true
+
+			},
+			wantErr: nil,
 		},
 		{
 			name: "creates a mariadb instance and binds a database instance to it",

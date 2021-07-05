@@ -96,7 +96,16 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 		return nil, err
 	}
 
-	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID())
+	mp := 0
+	mbyte, ok := secret.Data[MetricsPortKey]
+	if ok {
+		mp, err = strconv.Atoi(string(mbyte))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse metricsPort: %w", err)
+		}
+	}
+
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), mp)
 
 	return creds, nil
 }
@@ -155,8 +164,17 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 		return nil, err
 	}
 
+	mp := 0
+	mbyte, ok := secret.Data[MetricsPortKey]
+	if ok {
+		mp, err = strconv.Atoi(string(mbyte))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse metricsPort: %w", err)
+		}
+	}
+
 	pw := string(secret.Data[xrv1.ResourceCredentialsSecretPasswordKey])
-	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID())
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), mp)
 
 	return creds, nil
 }
@@ -240,7 +258,7 @@ func mapMariadbEndpoint(data map[string][]byte) (*Endpoint, error) {
 	}, nil
 }
 
-func createCredentials(endpoint *Endpoint, username, password, database string) Credentials {
+func createCredentials(endpoint *Endpoint, username, password, database string, metricsPort int) Credentials {
 	uri := fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true", username, password, endpoint.Host, endpoint.Port, database)
 
 	creds := Credentials{
@@ -254,6 +272,16 @@ func createCredentials(endpoint *Endpoint, username, password, database string) 
 		"database_uri": uri,
 		"uri":          uri,
 		"jdbcUrl":      fmt.Sprintf("jdbc:mysql://%s:%d/%s?user=%s&password=%s", endpoint.Host, endpoint.Port, database, username, password),
+	}
+
+	if metricsPort != 0 {
+		creds["metrics"] = []string{
+			fmt.Sprintf("http://%s:%d/metrics/haproxy-0", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%d/metrics/haproxy-1", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%d/metrics/mariadb-0", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%d/metrics/mariadb-1", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%d/metrics/mariadb-2", endpoint.Host, metricsPort),
+		}
 	}
 
 	return creds
