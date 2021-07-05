@@ -4,9 +4,8 @@ go 1.16
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/crossplane/crossplane v1.1.1
-	github.com/crossplane/crossplane-runtime v0.13.0
-	github.com/go-logr/logr v0.4.0 // indirect
+	github.com/crossplane/crossplane v1.3.0
+	github.com/crossplane/crossplane-runtime v0.14.0
 	github.com/go-logr/zapr v0.4.0
 	github.com/go-openapi/spec v0.19.5 // indirect
 	github.com/gorilla/mux v1.8.0
