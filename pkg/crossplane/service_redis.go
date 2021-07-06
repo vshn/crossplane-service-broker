@@ -81,16 +81,13 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	}
 	mbytes, ok := s.Data[MetricsPortKey]
 	if ok {
-		mp, err := strconv.Atoi(string(mbytes))
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse metrics port: %w", err)
-		}
+		mp := string(mbytes)
 		creds["metrics"] = []string{
-			fmt.Sprintf("http://%s:%d/metrics/haproxy-0", endpoint, mp),
-			fmt.Sprintf("http://%s:%d/metrics/haproxy-1", endpoint, mp),
-			fmt.Sprintf("http://%s:%d/metrics/redis-0", endpoint, mp),
-			fmt.Sprintf("http://%s:%d/metrics/redis-1", endpoint, mp),
-			fmt.Sprintf("http://%s:%d/metrics/redis-2", endpoint, mp),
+			fmt.Sprintf("http://%s:%s/metrics/haproxy-0", endpoint, mp),
+			fmt.Sprintf("http://%s:%s/metrics/haproxy-1", endpoint, mp),
+			fmt.Sprintf("http://%s:%s/metrics/redis-0", endpoint, mp),
+			fmt.Sprintf("http://%s:%s/metrics/redis-1", endpoint, mp),
+			fmt.Sprintf("http://%s:%s/metrics/redis-2", endpoint, mp),
 		}
 	}
 
