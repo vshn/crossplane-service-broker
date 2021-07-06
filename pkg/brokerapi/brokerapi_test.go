@@ -920,8 +920,8 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"sentinelPort": "21234",
-						"metricsPort":  "25197",
+						"sentinelPort":   "21234",
+						"monitoringPort": "25197",
 					}),
 				}
 				return func(c client.Client) error {
@@ -1103,7 +1103,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"metricsPort": "25197",
+						"monitoringPort":                          "25197",
 					}),
 				}
 				return func(c client.Client) error {

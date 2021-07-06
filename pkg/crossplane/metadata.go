@@ -55,7 +55,7 @@ const (
 	SentinelPortKey = "sentinelPort"
 
 	// MetricsPortKey is the key in the connection secret that contains the port on which the Prometheus metrics are exposed
-	MetricsPortKey = "metricsPort"
+	MetricsPortKey = "monitoringPort"
 )
 
 // Labels provides uniform access to parsed labels.
