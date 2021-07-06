@@ -270,9 +270,9 @@ func createCredentials(endpoint *Endpoint, username, password, database, metrics
 
 	if metricsPort != "" {
 		creds["metrics"] = []string{
-			fmt.Sprintf("http://%s:%s/metrics/mariadb-0", endpoint.Host, metricsPort),
-			fmt.Sprintf("http://%s:%s/metrics/mariadb-1", endpoint.Host, metricsPort),
-			fmt.Sprintf("http://%s:%s/metrics/mariadb-2", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%s/metrics/mariadb-0/metrics", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%s/metrics/mariadb-1/metrics", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%s/metrics/mariadb-2/metrics", endpoint.Host, metricsPort),
 		}
 	}
 
