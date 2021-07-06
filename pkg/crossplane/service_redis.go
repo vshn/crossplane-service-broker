@@ -83,8 +83,6 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	if ok {
 		mp := string(mbytes)
 		creds["metrics"] = []string{
-			fmt.Sprintf("http://%s:%s/metrics/haproxy-0", endpoint, mp),
-			fmt.Sprintf("http://%s:%s/metrics/haproxy-1", endpoint, mp),
 			fmt.Sprintf("http://%s:%s/metrics/redis-0", endpoint, mp),
 			fmt.Sprintf("http://%s:%s/metrics/redis-1", endpoint, mp),
 			fmt.Sprintf("http://%s:%s/metrics/redis-2", endpoint, mp),

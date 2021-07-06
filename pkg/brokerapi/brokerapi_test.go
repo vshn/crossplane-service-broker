@@ -948,8 +948,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 						},
 					},
 					"metrics": []string{
-						"http://localhost:25197/metrics/haproxy-0",
-						"http://localhost:25197/metrics/haproxy-1",
 						"http://localhost:25197/metrics/redis-0",
 						"http://localhost:25197/metrics/redis-1",
 						"http://localhost:25197/metrics/redis-2",
@@ -1127,8 +1125,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 					"uri":          "***",
 					"jdbcUrl":      "***",
 					"metrics": []string{
-						"http://localhost:25197/metrics/haproxy-0",
-						"http://localhost:25197/metrics/haproxy-1",
 						"http://localhost:25197/metrics/mariadb-0",
 						"http://localhost:25197/metrics/mariadb-1",
 						"http://localhost:25197/metrics/mariadb-2",
