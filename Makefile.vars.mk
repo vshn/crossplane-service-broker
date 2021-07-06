@@ -9,7 +9,7 @@ TESTBIN_DIR ?= $(TESTDATA_DIR)/bin
 DOCKER_CMD   ?= docker
 DOCKER_ARGS  ?= --rm --user "$$(id -u)" --volume "$${PWD}:/src" --workdir /src
 
-KIND_VERSION ?= 0.9.0
+KIND_VERSION ?= 0.11.1
 KIND_NODE_VERSION ?= v1.20.0
 KIND ?= $(TESTBIN_DIR)/kind
 
