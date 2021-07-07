@@ -50,13 +50,8 @@ const (
 	SLAStandard = "standard"
 )
 
-const (
-	// SentinelPortKey is the key in the connection secret that contains the port to Redis Sentinel
-	SentinelPortKey = "sentinelPort"
-
-	// MetricsPortKey is the key in the connection secret that contains the port on which the Prometheus metrics are exposed
-	MetricsPortKey = "monitoringPort"
-)
+// MetricsPortKey is the key in the connection secret that contains the port on which the Prometheus metrics are exposed
+const MetricsPortKey = "monitoringPort"
 
 // Labels provides uniform access to parsed labels.
 type Labels struct {

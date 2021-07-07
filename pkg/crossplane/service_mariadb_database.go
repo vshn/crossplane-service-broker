@@ -96,11 +96,7 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 		return nil, err
 	}
 
-	mp := ""
-	mbyte, ok := secret.Data[MetricsPortKey]
-	if ok {
-		mp = string(mbyte)
-	}
+	mp := string(secret.Data[MetricsPortKey])
 
 	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), mp)
 
@@ -161,12 +157,7 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 		return nil, err
 	}
 
-	mp := ""
-	mbyte, ok := secret.Data[MetricsPortKey]
-	if ok {
-		mp = string(mbyte)
-	}
-
+	mp := string(secret.Data[MetricsPortKey])
 	pw := string(secret.Data[xrv1.ResourceCredentialsSecretPasswordKey])
 	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), mp)
 
