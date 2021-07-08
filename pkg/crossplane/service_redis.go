@@ -10,6 +10,9 @@ import (
 	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 )
 
+// SentinelPortKey is the key in the connection secret that contains the port to Redis Sentinel
+const SentinelPortKey = "sentinelPort"
+
 // RedisServiceBinder defines a specific redis service with enough data to retrieve connection credentials.
 type RedisServiceBinder struct {
 	serviceBinder
@@ -57,7 +60,7 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	if err != nil {
 		return nil, err
 	}
-	sentinelPort, err := strconv.Atoi(string(s.Data["sentinelPort"]))
+	sentinelPort, err := strconv.Atoi(string(s.Data[SentinelPortKey]))
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +81,14 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 				"port": port,
 			},
 		},
+	}
+	mp := string(s.Data[MetricsPortKey])
+	if mp != "" {
+		creds["metrics"] = []string{
+			fmt.Sprintf("http://%s:%s/metrics/redis-0/metrics", endpoint, mp),
+			fmt.Sprintf("http://%s:%s/metrics/redis-1/metrics", endpoint, mp),
+			fmt.Sprintf("http://%s:%s/metrics/redis-2/metrics", endpoint, mp),
+		}
 	}
 
 	return creds, nil

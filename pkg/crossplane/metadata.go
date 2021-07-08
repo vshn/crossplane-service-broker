@@ -50,6 +50,9 @@ const (
 	SLAStandard = "standard"
 )
 
+// MetricsPortKey is the key in the connection secret that contains the port on which the Prometheus metrics are exposed
+const MetricsPortKey = "monitoringPort"
+
 // Labels provides uniform access to parsed labels.
 type Labels struct {
 	ServiceName ServiceName

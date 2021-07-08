@@ -96,7 +96,9 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 		return nil, err
 	}
 
-	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID())
+	mp := string(secret.Data[MetricsPortKey])
+
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), mp)
 
 	return creds, nil
 }
@@ -155,8 +157,9 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 		return nil, err
 	}
 
+	mp := string(secret.Data[MetricsPortKey])
 	pw := string(secret.Data[xrv1.ResourceCredentialsSecretPasswordKey])
-	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID())
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), mp)
 
 	return creds, nil
 }
@@ -240,7 +243,7 @@ func mapMariadbEndpoint(data map[string][]byte) (*Endpoint, error) {
 	}, nil
 }
 
-func createCredentials(endpoint *Endpoint, username, password, database string) Credentials {
+func createCredentials(endpoint *Endpoint, username, password, database, metricsPort string) Credentials {
 	uri := fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true", username, password, endpoint.Host, endpoint.Port, database)
 
 	creds := Credentials{
@@ -254,6 +257,14 @@ func createCredentials(endpoint *Endpoint, username, password, database string) 
 		"database_uri": uri,
 		"uri":          uri,
 		"jdbcUrl":      fmt.Sprintf("jdbc:mysql://%s:%d/%s?user=%s&password=%s", endpoint.Host, endpoint.Port, database, username, password),
+	}
+
+	if metricsPort != "" {
+		creds["metrics"] = []string{
+			fmt.Sprintf("http://%s:%s/metrics/mariadb-0/metrics", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%s/metrics/mariadb-1/metrics", endpoint.Host, metricsPort),
+			fmt.Sprintf("http://%s:%s/metrics/mariadb-2/metrics", endpoint.Host, metricsPort),
+		}
 	}
 
 	return creds
