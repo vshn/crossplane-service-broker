@@ -45,6 +45,9 @@ var ErrSLAUnknown = errors.New("unable to compare SLAs")
 // ErrSizeUnknown we do not know the provided plan size and cannot compare it
 var ErrSizeUnknown = errors.New("unable to compare plan sizes")
 
+// ErrDifferentService trying to compare plans of different services
+var ErrDifferentService = errors.New("unable to compare plans of different services")
+
 func getPlanSizeIndex(size string) int {
 	m := map[string]int{
 		SizeXSmall: 10,
@@ -84,6 +87,9 @@ func (p Plan) GVK() (schema.GroupVersionKind, error) {
 // Cmp will return an error if the plans are not comparable. For example if they are not
 // part of the same service or the plan sizes are unknown.
 func (p Plan) Cmp(b Plan) (int, error) {
+	if p.Labels.ServiceID != b.Labels.ServiceID {
+		return 0, ErrDifferentService
+	}
 	slaP := getPlanSLAIndex(p.Labels.SLA)
 	slaB := getPlanSLAIndex(b.Labels.SLA)
 	if slaP < 0 || slaB < 0 {
