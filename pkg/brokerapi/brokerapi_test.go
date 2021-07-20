@@ -1759,6 +1759,194 @@ func (ts *EnvTestSuite) TestBrokerAPI_Update() {
 		})
 	}
 }
+func (ts *EnvTestSuite) TestBrokerAPI_Update_WithPlanUpgrade() {
+	type args struct {
+		ctx        context.Context
+		instanceID string
+		bindingID  string
+		details    domain.UpdateDetails
+	}
+	ctx := context.WithValue(ts.Ctx, middlewares.CorrelationIDKey, "corrid")
+
+	tests := []struct {
+		name      string
+		args      args
+		want      *domain.UpdateServiceSpec
+		wantErr   error
+		resources func() (func(c client.Client) error, []client.Object)
+	}{
+		{
+			name: "service update not permitted",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "2",
+					PlanID:    "2-1",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.RedisService)
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return nil, []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlan("1", "1-2", crossplane.RedisService).Composition,
+					integration.NewTestServicePlan("2", "2-1", crossplane.RedisService).Composition,
+					servicePlan.Composition,
+					instance,
+				}
+			},
+			want:    nil,
+			wantErr: errors.New(`service update not permitted (correlation-id: "corrid")`),
+		},
+		{
+			name: "plan size increase permitted",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return nil, []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "large", "standard").Composition,
+					servicePlan.Composition,
+					instance,
+				}
+			},
+			want:    &domain.UpdateServiceSpec{},
+			wantErr: nil,
+		},
+		{
+			name: "plan size decrease not permitted",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "small", "standard")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return nil, []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "xsmall", "standard").Composition,
+					servicePlan.Composition,
+					instance,
+				}
+			},
+			want:    &domain.UpdateServiceSpec{},
+			wantErr: errors.New(`plan change not permitted (correlation-id: "corrid")`),
+		},
+		{
+			name: "plan size from unknown plan not permitted",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "medilarge", "standard")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return nil, []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "xsmall", "standard").Composition,
+					servicePlan.Composition,
+					instance,
+				}
+			},
+			want:    &domain.UpdateServiceSpec{},
+			wantErr: errors.New(`plan change not permitted (correlation-id: "corrid")`),
+		},
+		{
+			name: "plan size to unknown plan not permitted",
+			args: args{
+				ctx:        ctx,
+				instanceID: "1-1-1",
+				bindingID:  "1",
+				details: domain.UpdateDetails{
+					ServiceID: "1",
+					PlanID:    "1-2",
+					PreviousValues: domain.PreviousValues{
+						PlanID: "1-1",
+					},
+				},
+			},
+			resources: func() (func(c client.Client) error, []client.Object) {
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "xsmall", "standard")
+				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
+
+				return nil, []client.Object{
+					integration.NewTestService("1", crossplane.RedisService),
+					integration.NewTestService("2", crossplane.RedisService),
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "xsmall", "gold").Composition,
+					servicePlan.Composition,
+					instance,
+				}
+			},
+			want:    &domain.UpdateServiceSpec{},
+			wantErr: errors.New(`plan change not permitted (correlation-id: "corrid")`),
+		},
+	}
+
+	bAPI := New(ts.Crossplane, ts.Logger, true)
+
+	for _, tt := range tests {
+		ts.Run(tt.name, func() {
+			fn, objs := tt.resources()
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
+			defer func() {
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
+			}()
+			if fn != nil {
+				ts.Require().NoError(fn(ts.Manager.GetClient()))
+			}
+
+			got, err := bAPI.Update(tt.args.ctx, tt.args.instanceID, tt.args.details, false)
+			if tt.wantErr != nil {
+				ts.Assert().EqualError(err, tt.wantErr.Error())
+				return
+			}
+
+			ts.Assert().NoError(err)
+			ts.Assert().Equal(*tt.want, got)
+		})
+	}
+}
 
 func (ts *EnvTestSuite) TestBrokerAPI_Unbind() {
 	type args struct {

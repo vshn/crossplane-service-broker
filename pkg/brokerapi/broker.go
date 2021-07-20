@@ -338,9 +338,17 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 	if err != nil {
 		return res, ErrPlanChangeNotPermitted
 	}
-	if cmp != 0 {
+	if cmp > 0 {
+		// The new plan is smaller than the old.
+		// This is not supported.
 		return res, ErrPlanChangeNotPermitted
 	}
+	if cmp < 0 && !b.allowPlanUpgrades {
+		// The new plan is large than the old.
+		// This is only supported if explicitly enabled.
+		return res, ErrPlanChangeNotPermitted
+	}
+	// Plans only differ in SLA
 
 	instance.Composite.SetCompositionReference(&corev1.ObjectReference{
 		Name: np.Composition.GetName(),
