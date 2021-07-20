@@ -1705,7 +1705,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Update() {
 			wantErr: nil,
 		},
 		{
-			name: "upgrade super-large-standard -> super-large-premium possible",
+			name: "upgrade xlarge-standard -> xlarge-premium possible",
 			args: args{
 				ctx:        ctx,
 				instanceID: "1-1-1",
@@ -1719,13 +1719,13 @@ func (ts *EnvTestSuite) TestBrokerAPI_Update() {
 				},
 			},
 			resources: func() (func(c client.Client) error, []client.Object) {
-				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "super-large", "standard")
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "xlarge", "standard")
 				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []client.Object{
 					integration.NewTestService("1", crossplane.RedisService),
 					integration.NewTestService("2", crossplane.RedisService),
-					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "super-large-premium", "premium").Composition,
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "xlarge-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
 				}
