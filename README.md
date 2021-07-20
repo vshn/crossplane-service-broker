@@ -76,6 +76,7 @@ Example VSCode run configuration:
         "OSB_PASSWORD": "TEST",
         "OSB_SERVICE_IDS": "PROVIDE-SERVICE-UUIDS-HERE",
         "OSB_NAMESPACE": "test"
+        "OSB_ALLOW_PLAN_UPGRADES": "true"
       },
       "args": []
     }
