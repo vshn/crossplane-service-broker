@@ -15,17 +15,18 @@ import (
 
 // Config contains all configuration values.
 type Config struct {
-	Kubeconfig     string
-	ServiceIDs     []string
-	ListenAddr     string
-	Username       string
-	Password       string
-	UsernameClaim  string
-	JWKeyRegister  *jwt.KeyRegister
-	Namespace      string
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
-	MaxHeaderBytes int
+	Kubeconfig        string
+	ServiceIDs        []string
+	ListenAddr        string
+	Username          string
+	Password          string
+	UsernameClaim     string
+	JWKeyRegister     *jwt.KeyRegister
+	Namespace         string
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	MaxHeaderBytes    int
+	AllowPlanUpgrades bool
 }
 
 // GetEnv is an interface that allows to get variables from the environment
@@ -73,6 +74,9 @@ const (
 	// EnvJWTKeyPEMURL sets the URL of a PEM file, which is used to validate the signatures of the JWT Bearer Tokens.
 	EnvJWTKeyPEMURL = "OSB_JWT_KEYS_PEM_URL"
 
+	// EnvAllowPlanUpgrades enables plan upgrades when set to 'true'
+	EnvAllowPlanUpgrades = "OSB_ALLOW_PLAN_UPGRADES"
+
 	defaultHTTPTimeout        = 3 * time.Minute
 	defaultHTTPMaxHeaderBytes = 1 << 20 // 1 MB
 	defaultHTTPListenAddr     = ":8080"
@@ -81,14 +85,16 @@ const (
 
 // ReadConfig reads env variables using the passed function.
 func ReadConfig(getEnv GetEnv) (*Config, error) {
+	planUpgrade, _ := strconv.ParseBool(getEnv(EnvAllowPlanUpgrades))
 	cfg := Config{
-		Kubeconfig:    getEnv(EnvKubeconfig),
-		Username:      getEnv(EnvUsername),
-		Password:      getEnv(EnvPassword),
-		UsernameClaim: getEnv(EnvUsernameClaim),
-		Namespace:     getEnv(EnvNamespace),
-		ListenAddr:    getEnv(EnvHTTPListenAddr),
-		JWKeyRegister: &jwt.KeyRegister{},
+		Kubeconfig:        getEnv(EnvKubeconfig),
+		Username:          getEnv(EnvUsername),
+		Password:          getEnv(EnvPassword),
+		UsernameClaim:     getEnv(EnvUsernameClaim),
+		Namespace:         getEnv(EnvNamespace),
+		ListenAddr:        getEnv(EnvHTTPListenAddr),
+		JWKeyRegister:     &jwt.KeyRegister{},
+		AllowPlanUpgrades: planUpgrade,
 	}
 
 	ids, err := getServiceIDs(getEnv)

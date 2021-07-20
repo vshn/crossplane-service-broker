@@ -113,7 +113,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Services() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -290,7 +290,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -407,7 +407,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Deprovision() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -565,7 +565,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_LastOperation() {
 			wantErr: nil,
 		},
 	}
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -779,7 +779,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_LastBindingOperation() {
 			wantErr: apiresponses.ErrBindingDoesNotExist.AppendErrorMessage(`(correlation-id: "corrid")`),
 		},
 	}
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1269,7 +1269,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1413,7 +1413,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1518,7 +1518,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetInstance() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1735,7 +1735,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Update() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1857,7 +1857,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Unbind() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, false)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {

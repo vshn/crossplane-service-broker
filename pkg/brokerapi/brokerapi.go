@@ -22,9 +22,9 @@ type BrokerAPI struct {
 }
 
 // New sets up a new broker api
-func New(cp *crossplane.Crossplane, logger lager.Logger) *BrokerAPI {
+func New(cp *crossplane.Crossplane, logger lager.Logger, allowPlanUpgrades bool) *BrokerAPI {
 	return &BrokerAPI{
-		broker: NewBroker(cp),
+		broker: NewBroker(cp, allowPlanUpgrades),
 		logger: logger,
 	}
 }

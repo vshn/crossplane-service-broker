@@ -25,13 +25,15 @@ var (
 
 // Broker implements the service broker
 type Broker struct {
-	cp *crossplane.Crossplane
+	cp                *crossplane.Crossplane
+	allowPlanUpgrades bool
 }
 
 // NewBroker sets up a new broker.
-func NewBroker(cp *crossplane.Crossplane) *Broker {
+func NewBroker(cp *crossplane.Crossplane, allowPlanUpgrades bool) *Broker {
 	return &Broker{
-		cp: cp,
+		cp:                cp,
+		allowPlanUpgrades: allowPlanUpgrades,
 	}
 }
 
