@@ -336,6 +336,8 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 
 	cmp, err := p.Cmp(*np)
 	if err != nil {
+		// The new plan has a different service, unknown service, or unknown size.
+		// This change is not permitted.
 		return res, ErrPlanChangeNotPermitted
 	}
 	if cmp > 0 {
@@ -344,7 +346,7 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 		return res, ErrPlanChangeNotPermitted
 	}
 	if cmp < 0 && !b.allowPlanUpgrades {
-		// The new plan is large than the old.
+		// The new plan is larger than the old.
 		// This is only supported if explicitly enabled.
 		return res, ErrPlanChangeNotPermitted
 	}
