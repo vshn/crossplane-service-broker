@@ -69,7 +69,11 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 		return err
 	}
 
-	b := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}), cfg.AllowPlanUpgrades)
+	pc, err := crossplane.ParsePlanUpdateRules("", "standard>premium|premium>standard")
+	if err != nil {
+		return err
+	}
+	b := brokerapi.New(cp, logger.WithData(lager.Data{"component": "brokerapi"}), pc)
 
 	serviceBrokerCredential := auth.SingleCredential(cfg.Username, cfg.Password)
 	a := api.New(b, serviceBrokerCredential, cfg.JWKeyRegister, logger.WithData(lager.Data{"component": "api"}))

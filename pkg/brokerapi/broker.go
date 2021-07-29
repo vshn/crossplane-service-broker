@@ -25,15 +25,15 @@ var (
 
 // Broker implements the service broker
 type Broker struct {
-	cp                *crossplane.Crossplane
-	allowPlanUpgrades bool
+	cp           *crossplane.Crossplane
+	planComparer crossplane.PlanUpdateChecker
 }
 
 // NewBroker sets up a new broker.
-func NewBroker(cp *crossplane.Crossplane, allowPlanUpgrades bool) *Broker {
+func NewBroker(cp *crossplane.Crossplane, pc crossplane.PlanUpdateChecker) *Broker {
 	return &Broker{
-		cp:                cp,
-		allowPlanUpgrades: allowPlanUpgrades,
+		cp:           cp,
+		planComparer: pc,
 	}
 }
 
@@ -334,27 +334,7 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 		return res, err
 	}
 
-	cmp, err := p.CmpSize(*np)
-	if err != nil {
-		// The new plan has a different service, unknown service, or unknown size.
-		// This change is not permitted.
-		return res, ErrPlanChangeNotPermitted
-	}
-	if cmp > 0 {
-		// The new plan is smaller than the old.
-		// This is not supported.
-		return res, ErrPlanChangeNotPermitted
-	}
-	if cmp < 0 && !b.allowPlanUpgrades {
-		// The new plan is larger than the old.
-		// This is only supported if explicitly enabled.
-		return res, ErrPlanChangeNotPermitted
-	}
-	// Plans only differ in SLA
-	_, err = p.CmpSLA(*np)
-	if err != nil {
-		// The new plan has an unknown SLA.
-		// This change is not permitted.
+	if ok := b.planComparer.AllowUpdate(*p, *np); !ok {
 		return res, ErrPlanChangeNotPermitted
 	}
 
