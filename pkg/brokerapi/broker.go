@@ -335,6 +335,9 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 	}
 
 	if ok := b.planComparer.AllowUpdate(*p, *np); !ok {
+		rctx.Logger.Info("Plan change not permitted", lager.Data{
+			"old-plan-id": p.Labels.PlanName,
+		})
 		return res, ErrPlanChangeNotPermitted
 	}
 
