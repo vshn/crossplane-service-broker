@@ -334,7 +334,7 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 		return res, err
 	}
 
-	cmp, err := p.Cmp(*np)
+	cmp, err := p.CmpSize(*np)
 	if err != nil {
 		// The new plan has a different service, unknown service, or unknown size.
 		// This change is not permitted.
@@ -351,6 +351,12 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 		return res, ErrPlanChangeNotPermitted
 	}
 	// Plans only differ in SLA
+	_, err = p.CmpSLA(*np)
+	if err != nil {
+		// The new plan has an unknown SLA.
+		// This change is not permitted.
+		return res, ErrPlanChangeNotPermitted
+	}
 
 	instance.Composite.SetCompositionReference(&corev1.ObjectReference{
 		Name: np.Composition.GetName(),

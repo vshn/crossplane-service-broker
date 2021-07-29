@@ -81,33 +81,46 @@ func (p Plan) GVK() (schema.GroupVersionKind, error) {
 	return groupVersion.WithKind(p.Composition.Spec.CompositeTypeRef.Kind), nil
 }
 
-// Cmp returns 0 if the plan size is equal to b, they might differ in their SLA.
-// It will return -1 if the plan size is less than b, or 1 if the
-// quantity is greater than b.
-// Cmp will return an error if the plans are not comparable. For example if they are not
-// part of the same service or the plan sizes are unknown.
-func (p Plan) Cmp(b Plan) (int, error) {
+// CmpSize returns 0 if the plan size is equal to b.
+// It will return -1 if the plan size is less than b, or 1 if the quantity is greater than b.
+// CmpSize will return an error if the plans are not comparable. For example if they are not part of the same service or the plan sizes are unknown.
+func (p Plan) CmpSize(b Plan) (int, error) {
 	if p.Labels.ServiceID != b.Labels.ServiceID {
 		return 0, ErrDifferentService
 	}
-	slaP := getPlanSLAIndex(p.Labels.SLA)
-	slaB := getPlanSLAIndex(b.Labels.SLA)
-	if slaP < 0 || slaB < 0 {
-		return 0, ErrSLAUnknown
-	}
+
 	sizeP := getPlanSizeIndex(p.Labels.PlanSize)
 	sizeB := getPlanSizeIndex(b.Labels.PlanSize)
 	if sizeP < 0 || sizeB < 0 {
 		return 0, ErrSizeUnknown
 	}
+	return cmpInt(sizeP, sizeB), nil
+}
 
-	if sizeP < sizeB {
-		return -1, nil
+// CmpSLA returns 0 if the plan SLA is equal to b.
+// It will return -1 if the plan SLA is less than b, or 1 if it is greater than b.
+// CmpSLA will return an error if the plans are not comparable. For example if they are not part of the same service or the plan SLAs are unknown.
+func (p Plan) CmpSLA(b Plan) (int, error) {
+	if p.Labels.ServiceID != b.Labels.ServiceID {
+		return 0, ErrDifferentService
 	}
-	if sizeP > sizeB {
-		return 1, nil
+
+	slaP := getPlanSLAIndex(p.Labels.SLA)
+	slaB := getPlanSLAIndex(b.Labels.SLA)
+	if slaP < 0 || slaB < 0 {
+		return 0, ErrSLAUnknown
 	}
-	return 0, nil
+	return cmpInt(slaP, slaB), nil
+}
+
+func cmpInt(a, b int) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
 }
 
 func newPlan(c xv1.Composition) (*Plan, error) {
