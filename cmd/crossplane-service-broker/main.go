@@ -68,8 +68,7 @@ func run(signalChan chan os.Signal, logger lager.Logger) error {
 	if err != nil {
 		return err
 	}
-
-	pc, err := crossplane.ParsePlanUpdateRules("", "standard>premium|premium>standard")
+	pc, err := crossplane.ParsePlanUpdateRules(cfg.PlanUpdateSizeRule, cfg.PlanUpdateSLARule)
 	if err != nil {
 		return err
 	}

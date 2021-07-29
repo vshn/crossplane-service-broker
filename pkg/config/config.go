@@ -15,18 +15,19 @@ import (
 
 // Config contains all configuration values.
 type Config struct {
-	Kubeconfig        string
-	ServiceIDs        []string
-	ListenAddr        string
-	Username          string
-	Password          string
-	UsernameClaim     string
-	JWKeyRegister     *jwt.KeyRegister
-	Namespace         string
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	MaxHeaderBytes    int
-	AllowPlanUpgrades bool
+	Kubeconfig         string
+	ServiceIDs         []string
+	ListenAddr         string
+	Username           string
+	Password           string
+	UsernameClaim      string
+	JWKeyRegister      *jwt.KeyRegister
+	Namespace          string
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	MaxHeaderBytes     int
+	PlanUpdateSizeRule string
+	PlanUpdateSLARule  string
 }
 
 // GetEnv is an interface that allows to get variables from the environment
@@ -74,27 +75,34 @@ const (
 	// EnvJWTKeyPEMURL sets the URL of a PEM file, which is used to validate the signatures of the JWT Bearer Tokens.
 	EnvJWTKeyPEMURL = "OSB_JWT_KEYS_PEM_URL"
 
-	// EnvAllowPlanUpgrades enables plan upgrades when set to 'true'
-	EnvAllowPlanUpgrades = "OSB_ALLOW_PLAN_UPGRADES"
+	// EnvPlanUpdateSLA is a set of `|` seprated white-list rules for SLA changes
+	EnvPlanUpdateSLA = "OSB_PLAN_UPDATE_SLA_RULES"
+	// EnvPlanUpdateSize is a set of `|` seprated white-list rules for plan size changes
+	EnvPlanUpdateSize = "OSB_PLAN_UPDATE_SIZE_RULES"
 
 	defaultHTTPTimeout        = 3 * time.Minute
 	defaultHTTPMaxHeaderBytes = 1 << 20 // 1 MB
 	defaultHTTPListenAddr     = ":8080"
 	defaultUsernameClaim      = "sub"
+	defaultSLAUpdateRules     = "standard>premium|premium>standard"
 )
 
 // ReadConfig reads env variables using the passed function.
 func ReadConfig(getEnv GetEnv) (*Config, error) {
-	planUpgrade, _ := strconv.ParseBool(getEnv(EnvAllowPlanUpgrades))
 	cfg := Config{
-		Kubeconfig:        getEnv(EnvKubeconfig),
-		Username:          getEnv(EnvUsername),
-		Password:          getEnv(EnvPassword),
-		UsernameClaim:     getEnv(EnvUsernameClaim),
-		Namespace:         getEnv(EnvNamespace),
-		ListenAddr:        getEnv(EnvHTTPListenAddr),
-		JWKeyRegister:     &jwt.KeyRegister{},
-		AllowPlanUpgrades: planUpgrade,
+		Kubeconfig:         getEnv(EnvKubeconfig),
+		Username:           getEnv(EnvUsername),
+		Password:           getEnv(EnvPassword),
+		UsernameClaim:      getEnv(EnvUsernameClaim),
+		Namespace:          getEnv(EnvNamespace),
+		ListenAddr:         getEnv(EnvHTTPListenAddr),
+		JWKeyRegister:      &jwt.KeyRegister{},
+		PlanUpdateSizeRule: getEnv(EnvPlanUpdateSize),
+		PlanUpdateSLARule:  getEnv(EnvPlanUpdateSLA),
+	}
+
+	if cfg.PlanUpdateSLARule == "" {
+		cfg.PlanUpdateSLARule = defaultSLAUpdateRules
 	}
 
 	ids, err := getServiceIDs(getEnv)
