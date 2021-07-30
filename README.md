@@ -75,8 +75,8 @@ Example VSCode run configuration:
         "OSB_USERNAME": "test",
         "OSB_PASSWORD": "TEST",
         "OSB_SERVICE_IDS": "PROVIDE-SERVICE-UUIDS-HERE",
-        "OSB_NAMESPACE": "test"
-        "OSB_ALLOW_PLAN_UPGRADES": "true"
+        "OSB_NAMESPACE": "test",
+        "OSB_PLAN_UPDATE_SIZE_RULES": "xsmall>small|xsmall>medium|small>medium"
       },
       "args": []
     }
