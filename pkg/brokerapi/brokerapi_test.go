@@ -28,10 +28,11 @@ import (
 
 type EnvTestSuite struct {
 	suite.Suite
-	Ctx        context.Context
-	Logger     lager.Logger
-	Manager    *cintegration.Manager
-	Crossplane *crossplane.Crossplane
+	Ctx          context.Context
+	Logger       lager.Logger
+	Manager      *cintegration.Manager
+	Crossplane   *crossplane.Crossplane
+	PlanComparer crossplane.PlanUpdateChecker
 }
 
 func Test_BrokerAPI(t *testing.T) {
@@ -42,9 +43,13 @@ func (ts *EnvTestSuite) SetupSuite() {
 	m, logger, cp, err := integration.SetupManager(ts.T())
 	ts.Require().NoError(err, "unable to setup integration test manager")
 
+	pc, err := crossplane.ParsePlanUpdateRules("", "standard>premium|premium>standard")
+	ts.Require().NoError(err, "unable to setup plan comparer")
+
 	ts.Logger = logger
 	ts.Manager = m
 	ts.Crossplane = cp
+	ts.PlanComparer = pc
 	ts.Ctx = context.Background()
 }
 
@@ -113,7 +118,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Services() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -290,7 +295,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Provision() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -407,7 +412,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Deprovision() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -565,7 +570,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_LastOperation() {
 			wantErr: nil,
 		},
 	}
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -779,7 +784,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_LastBindingOperation() {
 			wantErr: apiresponses.ErrBindingDoesNotExist.AppendErrorMessage(`(correlation-id: "corrid")`),
 		},
 	}
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1269,7 +1274,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1413,7 +1418,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1518,7 +1523,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetInstance() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1705,7 +1710,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Update() {
 			wantErr: nil,
 		},
 		{
-			name: "upgrade super-large-standard -> super-large-premium possible",
+			name: "upgrade xlarge-standard -> xlarge-premium possible",
 			args: args{
 				ctx:        ctx,
 				instanceID: "1-1-1",
@@ -1719,13 +1724,13 @@ func (ts *EnvTestSuite) TestBrokerAPI_Update() {
 				},
 			},
 			resources: func() (func(c client.Client) error, []client.Object) {
-				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "super-large", "standard")
+				servicePlan := integration.NewTestServicePlanWithSize("1", "1-1", crossplane.RedisService, "xlarge", "standard")
 				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.RedisService, "1", "")
 
 				return nil, []client.Object{
 					integration.NewTestService("1", crossplane.RedisService),
 					integration.NewTestService("2", crossplane.RedisService),
-					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "super-large-premium", "premium").Composition,
+					integration.NewTestServicePlanWithSize("1", "1-2", crossplane.RedisService, "xlarge-premium", "premium").Composition,
 					servicePlan.Composition,
 					instance,
 				}
@@ -1735,7 +1740,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Update() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
@@ -1857,7 +1862,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Unbind() {
 		},
 	}
 
-	bAPI := New(ts.Crossplane, ts.Logger)
+	bAPI := New(ts.Crossplane, ts.Logger, ts.PlanComparer)
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {

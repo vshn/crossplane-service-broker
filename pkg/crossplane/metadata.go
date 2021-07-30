@@ -43,11 +43,6 @@ const (
 	DeletedLabel = SynToolsBase + "/deleted"
 	// PrincipalLabel stores the username of the entity (person or system) that created the respective resource
 	PrincipalLabel = SynToolsBase + "/principal"
-
-	// SLAPremium represents the string for the premium SLA
-	SLAPremium = "premium"
-	// SLAStandard represents the string for the standard SLA
-	SLAStandard = "standard"
 )
 
 // MetricsPortKey is the key in the connection secret that contains the port on which the Prometheus metrics are exposed

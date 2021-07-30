@@ -25,13 +25,15 @@ var (
 
 // Broker implements the service broker
 type Broker struct {
-	cp *crossplane.Crossplane
+	cp           *crossplane.Crossplane
+	planComparer crossplane.PlanUpdateChecker
 }
 
 // NewBroker sets up a new broker.
-func NewBroker(cp *crossplane.Crossplane) *Broker {
+func NewBroker(cp *crossplane.Crossplane, pc crossplane.PlanUpdateChecker) *Broker {
 	return &Broker{
-		cp: cp,
+		cp:           cp,
+		planComparer: pc,
 	}
 }
 
@@ -319,7 +321,7 @@ func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string, deta
 func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPlanID, newPlanID string) (domain.UpdateServiceSpec, error) {
 	res := domain.UpdateServiceSpec{}
 
-	_, instance, err := b.getPlanInstance(rctx, oldPlanID, instanceID)
+	p, instance, err := b.getPlanInstance(rctx, oldPlanID, instanceID)
 	if err != nil {
 		return res, err
 	}
@@ -332,32 +334,10 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 		return res, err
 	}
 
-	slaChangePermitted := func() bool {
-		instanceSLA := instance.Labels.SLA
-		newPlanSLA := np.Labels.SLA
-		instancePlanSize := instance.Labels.PlanSize
-		newPlanSize := np.Labels.PlanSize
-		instanceService := instance.Labels.ServiceID
-		newPlanService := np.Labels.ServiceID
-
-		// switch from redis to mariadb not permitted
-		if instanceService != newPlanService {
-			return false
-		}
-		// xsmall -> large not permitted, only xsmall <-> xsmall-premium
-		if instancePlanSize != newPlanSize {
-			return false
-		}
-		if instanceSLA == crossplane.SLAPremium && newPlanSLA == crossplane.SLAStandard {
-			return true
-		}
-		if instanceSLA == crossplane.SLAStandard && newPlanSLA == crossplane.SLAPremium {
-			return true
-		}
-		return false
-	}
-
-	if !slaChangePermitted() {
+	if !b.planComparer.AllowUpdate(*p, *np) {
+		rctx.Logger.Info("Plan change not permitted", lager.Data{
+			"old-plan-id": p.Labels.PlanName,
+		})
 		return res, ErrPlanChangeNotPermitted
 	}
 
