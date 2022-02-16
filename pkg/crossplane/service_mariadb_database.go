@@ -254,9 +254,10 @@ func createCredentials(endpoint *Endpoint, username, password, database, metrics
 		"database":                            database,
 		xrv1.ResourceCredentialsSecretUserKey: username,
 		xrv1.ResourceCredentialsSecretPasswordKey: password,
-		"database_uri": uri,
-		"uri":          uri,
-		"jdbcUrl":      fmt.Sprintf("jdbc:mysql://%s:%d/%s?user=%s&password=%s", endpoint.Host, endpoint.Port, database, username, password),
+		"database_uri":   uri,
+		"uri":            uri,
+		"jdbcUrl":        fmt.Sprintf("jdbc:mysql://%s:%d/%s?user=%s&password=%s", endpoint.Host, endpoint.Port, database, username, password),
+		"jdbcUrlMariaDb": fmt.Sprintf("jdbc:mariadb://%s:%d/%s?user=%s&password=%s", endpoint.Host, endpoint.Port, database, username, password),
 	}
 
 	if metricsPort != "" {
