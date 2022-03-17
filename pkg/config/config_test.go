@@ -56,6 +56,17 @@ func Test_ReadConfig(t *testing.T) {
 			config: nil,
 			err:    "OSB_NAMESPACE is required, but was not defined or is empty",
 		},
+		"metrics domain required": {
+			env: map[string]string{
+				EnvServiceIDs:    "1,2,3",
+				EnvUsername:      "user",
+				EnvPassword:      "pw",
+				EnvNamespace:     "test",
+				EnvEnableMetrics: "true",
+			},
+			config: nil,
+			err:    "ENABLE_METRICS is set to true, but METRICS_DOMAIN is empty",
+		},
 		"username claim given": {
 			env: map[string]string{
 				EnvServiceIDs:    "1,2,3",
@@ -79,6 +90,32 @@ func Test_ReadConfig(t *testing.T) {
 			},
 			err: "",
 		},
+		"metrics domain given": {
+			env: map[string]string{
+				EnvServiceIDs:    "1,2,3",
+				EnvUsername:      "user",
+				EnvPassword:      "pw",
+				EnvNamespace:     "test",
+				EnvEnableMetrics: "true",
+				EnvMetricsDomain: "example.tld",
+			},
+			config: &Config{
+				ServiceIDs:        []string{"1", "2", "3"},
+				ListenAddr:        ":8080",
+				Username:          "user",
+				Password:          "pw",
+				UsernameClaim:     defaultUsernameClaim,
+				Namespace:         "test",
+				ReadTimeout:       defaultHTTPTimeout,
+				WriteTimeout:      defaultHTTPTimeout,
+				MaxHeaderBytes:    defaultHTTPMaxHeaderBytes,
+				JWKeyRegister:     &jwt.KeyRegister{},
+				PlanUpdateSLARule: defaultSLAUpdateRules,
+				EnableMetrics:     true,
+				MetricsDomain:     "example.tld",
+			},
+			err: "",
+		},
 		"defaults configured": {
 			env: map[string]string{
 				EnvServiceIDs: "1,2,3",
@@ -98,6 +135,7 @@ func Test_ReadConfig(t *testing.T) {
 				MaxHeaderBytes:    defaultHTTPMaxHeaderBytes,
 				JWKeyRegister:     &jwt.KeyRegister{},
 				PlanUpdateSLARule: defaultSLAUpdateRules,
+				EnableMetrics:     defaultEnableMetrics,
 			},
 			err: "",
 		},

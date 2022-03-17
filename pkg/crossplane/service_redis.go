@@ -64,6 +64,7 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	if err != nil {
 		return nil, err
 	}
+	cn := rsb.instance.GetClusterName()
 	creds := Credentials{
 		"password": string(s.Data[xrv1.ResourceCredentialsSecretPasswordKey]),
 		"host":     endpoint,
@@ -82,12 +83,11 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 			},
 		},
 	}
-	mp := string(s.Data[MetricsPortKey])
-	if mp != "" {
-		creds["metrics"] = []string{
-			fmt.Sprintf("http://%s:%s/metrics/redis-0/metrics", endpoint, mp),
-			fmt.Sprintf("http://%s:%s/metrics/redis-1/metrics", endpoint, mp),
-			fmt.Sprintf("http://%s:%s/metrics/redis-2/metrics", endpoint, mp),
+	if rsb.cp.config.EnableMetrics {
+		creds["metricsEndpoints"] = []string{
+			fmt.Sprintf("http://%s-redis-0.%s.%s", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
+			fmt.Sprintf("http://%s-redis-1.%s.%s", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
+			fmt.Sprintf("http://%s-redis-2.%s.%s", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
 		}
 	}
 
