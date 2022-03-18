@@ -61,3 +61,9 @@ func newInstance(c *composite.Unstructured) (*Instance, error) {
 		Labels:    l,
 	}, nil
 }
+
+// GetClusterName returns the cluster name of the instance
+func (instance Instance) GetClusterName() string {
+	labels := instance.Composite.GetLabels()
+	return labels["service.syn.tools/cluster"]
+}

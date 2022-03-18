@@ -96,9 +96,8 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 		return nil, err
 	}
 
-	mp := string(secret.Data[MetricsPortKey])
-
-	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), mp)
+	cn := msb.instance.GetClusterName()
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), cn, msb.cp.config.EnableMetrics, msb.cp.config.MetricsDomain)
 
 	return creds, nil
 }
@@ -157,9 +156,13 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 		return nil, err
 	}
 
-	mp := string(secret.Data[MetricsPortKey])
+	parent := composite.New(composite.WithGroupVersionKind(mariaDBGroupVersionKind))
+	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: msb.instance.Labels.ParentID}, parent); err != nil {
+		return nil, fmt.Errorf("Could not get parent instance: %w", err)
+	}
+	cn := parent.GetLabels()["service.syn.tools/cluster"]
 	pw := string(secret.Data[xrv1.ResourceCredentialsSecretPasswordKey])
-	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), mp)
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), cn, msb.cp.config.EnableMetrics, msb.cp.config.MetricsDomain)
 
 	return creds, nil
 }
@@ -243,7 +246,7 @@ func mapMariadbEndpoint(data map[string][]byte) (*Endpoint, error) {
 	}, nil
 }
 
-func createCredentials(endpoint *Endpoint, username, password, database, metricsPort string) Credentials {
+func createCredentials(endpoint *Endpoint, username, password, database, clusterName string, metricsEnabled bool, metricsDomain string) Credentials {
 	uri := fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true", username, password, endpoint.Host, endpoint.Port, database)
 
 	creds := Credentials{
@@ -259,12 +262,11 @@ func createCredentials(endpoint *Endpoint, username, password, database, metrics
 		"jdbcUrl":        fmt.Sprintf("jdbc:mysql://%s:%d/%s?user=%s&password=%s", endpoint.Host, endpoint.Port, database, username, password),
 		"jdbcUrlMariaDb": fmt.Sprintf("jdbc:mariadb://%s:%d/%s?user=%s&password=%s", endpoint.Host, endpoint.Port, database, username, password),
 	}
-
-	if metricsPort != "" {
-		creds["metrics"] = []string{
-			fmt.Sprintf("http://%s:%s/metrics/mariadb-0/metrics", endpoint.Host, metricsPort),
-			fmt.Sprintf("http://%s:%s/metrics/mariadb-1/metrics", endpoint.Host, metricsPort),
-			fmt.Sprintf("http://%s:%s/metrics/mariadb-2/metrics", endpoint.Host, metricsPort),
+	if metricsEnabled {
+		creds["metricsEndpoints"] = []string{
+			fmt.Sprintf("http://%s-mariadb-0.%s.%s", database, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s-mariadb-1.%s.%s", database, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s-mariadb-2.%s.%s", database, clusterName, metricsDomain),
 		}
 	}
 

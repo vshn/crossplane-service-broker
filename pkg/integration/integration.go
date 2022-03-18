@@ -168,6 +168,7 @@ func NewTestInstance(instanceID string, plan *crossplane.Plan, serviceName cross
 		crossplane.ServiceIDLabel:   serviceID,
 		crossplane.SLALabel:         plan.Labels.SLA,
 		crossplane.ServiceNameLabel: string(serviceName),
+		crossplane.ClusterLabel:     "dbaas-test-cluster",
 	}
 	if parent != "" {
 		labels[crossplane.ParentIDLabel] = parent
@@ -287,7 +288,7 @@ func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 
 	require.NoError(t, CreateObjects(context.Background(), []client.Object{newTestNamespace(TestNamespace)})(m.GetClient()))
 
-	brokerConfig := &config.Config{ServiceIDs: []string{"1", "2"}, Namespace: TestNamespace, UsernameClaim: "sub"}
+	brokerConfig := &config.Config{ServiceIDs: []string{"1", "2"}, Namespace: TestNamespace, UsernameClaim: "sub", EnableMetrics: true, MetricsDomain: "metrics.example.tld"}
 	cp, err := crossplane.New(brokerConfig, m.GetConfig())
 	if err != nil {
 		return nil, nil, nil, err

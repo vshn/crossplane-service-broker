@@ -81,4 +81,14 @@ HMAC Secrets can only be defined in JWK files and are not supported in PEM files
 Only the `https` and `file` protocol are currently supported.
 |_NOT RECOMMENDED, use JWK keys instead. No default value is defined._
 |`file:///etc/osb/certs.pem` or `https://auth.corp/token_signing_keys.pem`
+
+|`ENABLE_METRICS`
+|If the metrics endpoints should be exposed in the `credentials` env variable
+|`false`
+|
+
+|`METRICS_DOMAIN`
+|Domain name used to generate the metrics endpoint url.
+|`""`
+|`metrics.example.tld`
 |===

@@ -28,6 +28,8 @@ type Config struct {
 	MaxHeaderBytes     int
 	PlanUpdateSizeRule string
 	PlanUpdateSLARule  string
+	EnableMetrics      bool
+	MetricsDomain      string
 }
 
 // GetEnv is an interface that allows to get variables from the environment
@@ -80,11 +82,17 @@ const (
 	// EnvPlanUpdateSize is a set of `|` seprated white-list rules for plan size changes
 	EnvPlanUpdateSize = "OSB_PLAN_UPDATE_SIZE_RULES"
 
+	// EnvEnableMetrics defines if metrics endpoints are returned.
+	EnvEnableMetrics = "ENABLE_METRICS"
+	// EnvMetricsDomain sets domain name for the metrics endpoints.
+	EnvMetricsDomain = "METRICS_DOMAIN"
+
 	defaultHTTPTimeout        = 3 * time.Minute
 	defaultHTTPMaxHeaderBytes = 1 << 20 // 1 MB
 	defaultHTTPListenAddr     = ":8080"
 	defaultUsernameClaim      = "sub"
 	defaultSLAUpdateRules     = "standard>premium|premium>standard"
+	defaultEnableMetrics      = false
 )
 
 // ReadConfig reads env variables using the passed function.
@@ -99,6 +107,7 @@ func ReadConfig(getEnv GetEnv) (*Config, error) {
 		JWKeyRegister:      &jwt.KeyRegister{},
 		PlanUpdateSizeRule: getEnv(EnvPlanUpdateSize),
 		PlanUpdateSLARule:  getEnv(EnvPlanUpdateSLA),
+		MetricsDomain:      getEnv(EnvMetricsDomain),
 	}
 
 	if cfg.PlanUpdateSLARule == "" {
@@ -139,6 +148,18 @@ func ReadConfig(getEnv GetEnv) (*Config, error) {
 		return nil, err
 	}
 
+	enableMetrics, err := getEnableMetrics(getEnv)
+	if err != nil {
+		return nil, err
+	}
+	cfg.EnableMetrics = enableMetrics
+
+	metricsDomain, err := getMetricsDomain(getEnv, cfg.EnableMetrics)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MetricsDomain = metricsDomain
+
 	setDefaults(&cfg)
 
 	return &cfg, nil
@@ -163,6 +184,9 @@ func ensureRequiredSettings(cfg Config) error {
 	}
 	if cfg.Namespace == "" {
 		return fmt.Errorf("%s is required, but was not defined or is empty", EnvNamespace)
+	}
+	if cfg.EnableMetrics == true && cfg.MetricsDomain == "" {
+		return fmt.Errorf("%s is required, but was not defined or is empty", EnvMetricsDomain)
 	}
 	return nil
 }
@@ -207,6 +231,29 @@ func getTimeout(getEnv GetEnv, timeoutName string) (time.Duration, error) {
 		return 0, fmt.Errorf("%s is set to '%s', but that is not a valid time format: %w", timeoutName, timeout, err)
 	}
 	return wt, err
+}
+
+func getEnableMetrics(getEnv GetEnv) (bool, error) {
+	enableMetrics := getEnv(EnvEnableMetrics)
+	if enableMetrics == "" {
+		return defaultEnableMetrics, nil
+	}
+	metricsEnabled, err := strconv.ParseBool(enableMetrics)
+	if err != nil {
+		return false, fmt.Errorf("%s is set to '%t', but a boolean was expected: %w", EnvEnableMetrics, metricsEnabled, err)
+	}
+	return metricsEnabled, nil
+}
+
+func getMetricsDomain(GetEnv GetEnv, enableMetrics bool) (string, error) {
+	if !enableMetrics {
+		return "", nil
+	}
+	metricsDomain := GetEnv(EnvMetricsDomain)
+	if metricsDomain == "" {
+		return "", fmt.Errorf("%s is set to true, but %s is empty", EnvEnableMetrics, EnvMetricsDomain)
+	}
+	return metricsDomain, nil
 }
 
 func loadJWTSigningKeys(getEnv GetEnv, keys *jwt.KeyRegister) error {
