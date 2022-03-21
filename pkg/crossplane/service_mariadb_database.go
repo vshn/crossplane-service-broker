@@ -101,7 +101,7 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 		return nil, fmt.Errorf("Could not get parent instance: %w", err)
 	}
 	cn := parent.GetLabels()["service.syn.tools/cluster"]
-	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), cn, msb.cp.config.EnableMetrics, msb.cp.config.MetricsDomain)
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), msb.instance.Labels.ParentID, cn, msb.cp.config.EnableMetrics, msb.cp.config.MetricsDomain)
 
 	return creds, nil
 }
@@ -166,7 +166,7 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 	}
 	cn := parent.GetLabels()["service.syn.tools/cluster"]
 	pw := string(secret.Data[xrv1.ResourceCredentialsSecretPasswordKey])
-	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), cn, msb.cp.config.EnableMetrics, msb.cp.config.MetricsDomain)
+	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), msb.instance.Labels.ParentID, cn, msb.cp.config.EnableMetrics, msb.cp.config.MetricsDomain)
 
 	return creds, nil
 }
@@ -250,7 +250,7 @@ func mapMariadbEndpoint(data map[string][]byte) (*Endpoint, error) {
 	}, nil
 }
 
-func createCredentials(endpoint *Endpoint, username, password, database, clusterName string, metricsEnabled bool, metricsDomain string) Credentials {
+func createCredentials(endpoint *Endpoint, username, password, database, databaseParent string, clusterName string, metricsEnabled bool, metricsDomain string) Credentials {
 	uri := fmt.Sprintf("mysql://%s:%s@%s:%d/%s?reconnect=true", username, password, endpoint.Host, endpoint.Port, database)
 
 	creds := Credentials{
@@ -268,9 +268,9 @@ func createCredentials(endpoint *Endpoint, username, password, database, cluster
 	}
 	if metricsEnabled {
 		creds["metricsEndpoints"] = []string{
-			fmt.Sprintf("http://%s-mariadb-0.%s.%s", database, clusterName, metricsDomain),
-			fmt.Sprintf("http://%s-mariadb-1.%s.%s", database, clusterName, metricsDomain),
-			fmt.Sprintf("http://%s-mariadb-2.%s.%s", database, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s-mariadb-0.%s.%s", databaseParent, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s-mariadb-1.%s.%s", databaseParent, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s-mariadb-2.%s.%s", databaseParent, clusterName, metricsDomain),
 		}
 	}
 

@@ -1082,9 +1082,9 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 					"jdbcUrl":        "***",
 					"jdbcUrlMariaDb": "***",
 					"metricsEndpoints": []string{
-						"http://1-2-1-mariadb-0.dbaas-test-cluster.metrics.example.tld",
-						"http://1-2-1-mariadb-1.dbaas-test-cluster.metrics.example.tld",
-						"http://1-2-1-mariadb-2.dbaas-test-cluster.metrics.example.tld",
+						"http://1-1-1-mariadb-0.dbaas-test-cluster.metrics.example.tld",
+						"http://1-1-1-mariadb-1.dbaas-test-cluster.metrics.example.tld",
+						"http://1-1-1-mariadb-2.dbaas-test-cluster.metrics.example.tld",
 					},
 				},
 			},
