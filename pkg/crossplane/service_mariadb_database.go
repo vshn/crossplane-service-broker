@@ -96,7 +96,11 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 		return nil, err
 	}
 
-	cn := msb.instance.GetClusterName()
+	parent := composite.New(composite.WithGroupVersionKind(mariaDBGroupVersionKind))
+	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: msb.instance.Labels.ParentID}, parent); err != nil {
+		return nil, fmt.Errorf("Could not get parent instance: %w", err)
+	}
+	cn := parent.GetLabels()["service.syn.tools/cluster"]
 	creds := createCredentials(endpoint, bindingID, pw, msb.instance.ID(), cn, msb.cp.config.EnableMetrics, msb.cp.config.MetricsDomain)
 
 	return creds, nil
