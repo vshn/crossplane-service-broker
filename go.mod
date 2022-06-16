@@ -12,7 +12,7 @@ require (
 	github.com/pascaldekloe/jwt v1.10.0
 	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/pivotal-cf/brokerapi/v8 v8.1.0
-	github.com/prometheus/client_golang v1.11.0
+	github.com/prometheus/client_golang v1.12.2
 	github.com/stretchr/testify v1.7.1
 	github.com/ulikunitz/xz v0.5.8 // indirect
 	go.uber.org/zap v1.21.0
