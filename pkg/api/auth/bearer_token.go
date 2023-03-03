@@ -15,14 +15,14 @@ type BearerToken struct {
 // TokenPropertyName allows to query the HTTP context for the current user's JWT token.
 // See Context() on http.Request.
 //
-//   func(w http.ResponseWriter, r *http.Request) {
-//     claims := req.Context().Value(auth.TokenPropertyName).(*jwt.Claims)
-//     if n, ok := claims.Number("deadline"); !ok {
-//       fmt.Fprintln(w, "no deadline")
-//     } else {
-//       fmt.Fprintln(w, "deadline at", (*jwt.NumericTime)(&n))
-//     }
-//   }
+//	func(w http.ResponseWriter, r *http.Request) {
+//	  claims := req.Context().Value(auth.TokenPropertyName).(*jwt.Claims)
+//	  if n, ok := claims.Number("deadline"); !ok {
+//	    fmt.Fprintln(w, "no deadline")
+//	  } else {
+//	    fmt.Fprintln(w, "deadline at", (*jwt.NumericTime)(&n))
+//	  }
+//	}
 const TokenPropertyName = "bearer-token"
 
 // Handler represents a mux.MiddlewareFunc

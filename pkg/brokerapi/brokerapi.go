@@ -30,7 +30,8 @@ func New(cp *crossplane.Crossplane, logger lager.Logger, pc crossplane.PlanUpdat
 }
 
 // Services gets the catalog of services offered by the service broker
-//   GET /v2/catalog
+//
+//	GET /v2/catalog
 func (b BrokerAPI) Services(ctx context.Context) ([]domain.Service, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, nil)
 	rctx.Logger.Info("get-catalog")
@@ -40,7 +41,8 @@ func (b BrokerAPI) Services(ctx context.Context) ([]domain.Service, error) {
 }
 
 // Provision creates a new service instance
-//   PUT /v2/service_instances/{instance_id}
+//
+//	PUT /v2/service_instances/{instance_id}
 func (b BrokerAPI) Provision(ctx context.Context, instanceID string, details domain.ProvisionDetails, asyncAllowed bool) (domain.ProvisionedServiceSpec, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
@@ -58,7 +60,8 @@ func (b BrokerAPI) Provision(ctx context.Context, instanceID string, details dom
 }
 
 // Deprovision deletes an existing service instance
-//  DELETE /v2/service_instances/{instance_id}
+//
+//	DELETE /v2/service_instances/{instance_id}
 func (b BrokerAPI) Deprovision(ctx context.Context, instanceID string, details domain.DeprovisionDetails, asyncAllowed bool) (domain.DeprovisionServiceSpec, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
@@ -72,7 +75,8 @@ func (b BrokerAPI) Deprovision(ctx context.Context, instanceID string, details d
 }
 
 // GetInstance fetches information about a service instance
-//   GET /v2/service_instances/{instance_id}
+//
+//	GET /v2/service_instances/{instance_id}
 func (b BrokerAPI) GetInstance(ctx context.Context, instanceID string, details domain.FetchInstanceDetails) (domain.GetInstanceDetailsSpec, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
@@ -84,7 +88,8 @@ func (b BrokerAPI) GetInstance(ctx context.Context, instanceID string, details d
 }
 
 // Update modifies an existing service instance
-//  PATCH /v2/service_instances/{instance_id}
+//
+//	PATCH /v2/service_instances/{instance_id}
 func (b BrokerAPI) Update(ctx context.Context, instanceID string, details domain.UpdateDetails, asyncAllowed bool) (domain.UpdateServiceSpec, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
@@ -106,7 +111,8 @@ func (b BrokerAPI) Update(ctx context.Context, instanceID string, details domain
 }
 
 // LastOperation fetches last operation state for a service instance
-//   GET /v2/service_instances/{instance_id}/last_operation
+//
+//	GET /v2/service_instances/{instance_id}/last_operation
 func (b BrokerAPI) LastOperation(ctx context.Context, instanceID string, details domain.PollDetails) (domain.LastOperation, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
@@ -120,7 +126,8 @@ func (b BrokerAPI) LastOperation(ctx context.Context, instanceID string, details
 }
 
 // Bind creates a new service binding
-//   PUT /v2/service_instances/{instance_id}/service_bindings/{binding_id}
+//
+//	PUT /v2/service_instances/{instance_id}/service_bindings/{binding_id}
 func (b BrokerAPI) Bind(ctx context.Context, instanceID, bindingID string, details domain.BindDetails, asyncAllowed bool) (domain.Binding, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
@@ -135,7 +142,8 @@ func (b BrokerAPI) Bind(ctx context.Context, instanceID, bindingID string, detai
 }
 
 // Unbind deletes an existing service binding
-//   DELETE /v2/service_instances/{instance_id}/service_bindings/{binding_id}
+//
+//	DELETE /v2/service_instances/{instance_id}/service_bindings/{binding_id}
 func (b BrokerAPI) Unbind(ctx context.Context, instanceID, bindingID string, details domain.UnbindDetails, asyncAllowed bool) (domain.UnbindSpec, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
@@ -150,7 +158,9 @@ func (b BrokerAPI) Unbind(ctx context.Context, instanceID, bindingID string, det
 }
 
 // GetBinding fetches an existing service binding
-//   GET /v2/service_instances/{instance_id}/service_bindings/{binding_id}
+//
+//	GET /v2/service_instances/{instance_id}/service_bindings/{binding_id}
+//
 // TODO(mw): adjust to use details.PlanID when https://github.com/pivotal-cf/brokerapi/pull/138 is merged.
 func (b BrokerAPI) GetBinding(ctx context.Context, instanceID, bindingID string, details domain.FetchBindingDetails) (domain.GetBindingSpec, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
@@ -164,7 +174,8 @@ func (b BrokerAPI) GetBinding(ctx context.Context, instanceID, bindingID string,
 }
 
 // LastBindingOperation fetches last operation state for a service binding
-//   GET /v2/service_instances/{instance_id}/service_bindings/{binding_id}/last_operation
+//
+//	GET /v2/service_instances/{instance_id}/service_bindings/{binding_id}/last_operation
 func (b BrokerAPI) LastBindingOperation(ctx context.Context, instanceID, bindingID string, details domain.PollDetails) (domain.LastOperation, error) {
 	rctx := reqcontext.NewReqContext(ctx, b.logger, lager.Data{
 		"instance-id": instanceID,
