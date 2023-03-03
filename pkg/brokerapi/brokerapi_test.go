@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"code.cloudfoundry.org/lager"
@@ -20,8 +21,11 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/vshn/crossplane-service-broker/pkg/api/auth"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
 	cintegration "github.com/crossplane/crossplane-runtime/pkg/test/integration"
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 	"github.com/vshn/crossplane-service-broker/pkg/integration"
@@ -1726,11 +1730,31 @@ func (ts *EnvTestSuite) TestBrokerAPI_Unbind() {
 			resources: func() (func(c client.Client) error, []client.Object) {
 				servicePlan := integration.NewTestServicePlan("1", "1-1", crossplane.MariaDBDatabaseService)
 				instance := integration.NewTestInstance("1-1-1", servicePlan, crossplane.MariaDBDatabaseService, "", "1")
+
+				userInstance := integration.NewTestMariaDBUserInstance("1-1-1", "binding-1")
+
+				gvk := schema.GroupVersionKind{
+					Group:   "mysql.sql.crossplane.io",
+					Version: "v1alpha1",
+					Kind:    "User",
+				}
+				sqlUser := composite.New(composite.WithGroupVersionKind(gvk))
+				sqlUser.SetName("binding-1-user")
+
+				userInstance.SetResourceReferences([]corev1.ObjectReference{
+					{
+						Kind:       sqlUser.GetKind(),
+						Name:       sqlUser.GetName(),
+						APIVersion: sqlUser.GetAPIVersion(),
+					},
+				})
+
 				objs := []client.Object{
 					integration.NewTestService("1", crossplane.MariaDBDatabaseService),
 					servicePlan.Composition,
 					instance,
-					integration.NewTestMariaDBUserInstance("1-1-1", "binding-1"),
+					userInstance,
+					sqlUser,
 					integration.NewTestSecret(integration.TestNamespace, "binding-1-password", map[string]string{
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
 					}),
@@ -1750,17 +1774,14 @@ func (ts *EnvTestSuite) TestBrokerAPI_Unbind() {
 
 	for _, tt := range tests {
 		ts.Run(tt.name, func() {
+			c := ts.Manager.GetClient()
 			fn, objs := tt.resources()
-			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
+			ts.Require().NoError(integration.CreateObjects(tt.args.ctx, objs)(c))
 			defer func() {
-				// if wantErr == nil, secret must be gone and would error here if we still would try to remove it again
-				if tt.wantErr == nil {
-					objs = objs[:len(objs)-1]
-				}
-				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(ts.Manager.GetClient()))
+				ts.Require().NoError(integration.RemoveObjects(tt.args.ctx, objs)(c))
 			}()
 			if fn != nil {
-				ts.Require().NoError(fn(ts.Manager.GetClient()))
+				ts.Require().NoError(fn(c))
 			}
 
 			got, err := bAPI.Unbind(tt.args.ctx, tt.args.instanceID, tt.args.bindingID, tt.args.details, false)
@@ -1771,6 +1792,34 @@ func (ts *EnvTestSuite) TestBrokerAPI_Unbind() {
 
 			ts.Assert().NoError(err)
 			ts.Assert().Equal(*tt.want, got)
+
+			// Check that neither binding nor secret exist anymore or are marked for deletion
+			userInstance := integration.NewTestMariaDBUserInstance("", "")
+			err = c.Get(ctx, client.ObjectKey{
+				Name:      tt.args.bindingID,
+				Namespace: integration.TestNamespace,
+			}, userInstance)
+			if err != nil {
+				ts.Assert().True(apierrors.IsNotFound(err))
+				ts.Assert().NoError(err)
+			} else {
+				ts.Assert().NotNil(userInstance.GetDeletionTimestamp())
+			}
+
+			secret := integration.NewTestSecret("", "", map[string]string{})
+			err = c.Get(ctx, client.ObjectKey{
+				Name:      fmt.Sprintf("%s-password", tt.args.bindingID),
+				Namespace: integration.TestNamespace,
+			}, secret)
+			if err != nil {
+				ts.Assert().True(apierrors.IsNotFound(err))
+			} else if secret.GetDeletionTimestamp() == nil {
+				ts.Assert().NotEmpty(secret.GetOwnerReferences())
+				ts.Assert().True(*secret.GetOwnerReferences()[0].BlockOwnerDeletion)
+				ts.Assert().Equal("binding-1-user", secret.GetOwnerReferences()[0].Name)
+				ts.Assert().NotEmpty(secret.GetOwnerReferences()[0].UID)
+			}
+
 		})
 	}
 }
