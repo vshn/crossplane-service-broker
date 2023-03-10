@@ -13,11 +13,11 @@ import (
 // UserPropertyName allows to query the HTTP context for the current user's name.
 // See Context() on http.Request.
 //
-//   func(w http.ResponseWriter, r *http.Request) {
-//     user := r.Context().Value(auth.UserPropertyName);
-//     fmt.Fprintf(w, "This is an authenticated request")
-//     fmt.Fprintf(w, "User name: '%s'\n", user)
-//   }
+//	func(w http.ResponseWriter, r *http.Request) {
+//	  user := r.Context().Value(auth.UserPropertyName);
+//	  fmt.Fprintf(w, "This is an authenticated request")
+//	  fmt.Fprintf(w, "User name: '%s'\n", user)
+//	}
 const UserPropertyName contextKey = "user"
 
 // Basic represents a mux middleware that, given a http.Request, checks whether the Authorization header
@@ -26,7 +26,7 @@ type Basic struct {
 	Credentials []Credential
 }
 
-// Credential represents one user's ``username and password'' combination.
+// Credential represents one user's “username and password” combination.
 type Credential struct {
 	username []byte
 	password []byte

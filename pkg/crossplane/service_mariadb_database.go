@@ -3,9 +3,9 @@ package crossplane
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
@@ -16,8 +16,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -108,25 +110,59 @@ func (msb MariadbDatabaseServiceBinder) Bind(ctx context.Context, bindingID stri
 
 // Unbind deletes the created User and Grant.
 func (msb MariadbDatabaseServiceBinder) Unbind(ctx context.Context, bindingID string) error {
-	cmp := composite.New(composite.WithGroupVersionKind(mariaDBUserGroupVersionKind))
-	cmp.SetName(bindingID)
-	if err := msb.cp.client.Delete(ctx, cmp, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
-		return err
+
+	if err := msb.markCredentialsForDeletion(ctx, bindingID); err != nil {
+		return fmt.Errorf("could not mark credentials for deletion: %w", err)
 	}
 
-	// TODO: figure out a better way to delete the password secret
-	//       option a) use Watch on resourceRefs of composite and wait until User/Grant are both deleted
-	//       option b) https://github.com/crossplane/crossplane/issues/1612 is implemented by crossplane
-	//                 and wait for the composite to disappear before removing the secret
-	// If we delete the secret too quickly, the provider-sql can't deprovision the user
-	time.Sleep(5 * time.Second)
+	cmp := composite.New(composite.WithGroupVersionKind(mariaDBUserGroupVersionKind))
+	cmp.SetName(bindingID)
+	return msb.cp.client.Delete(ctx, cmp, client.PropagationPolicy(metav1.DeletePropagationForeground))
+}
+
+func (msb MariadbDatabaseServiceBinder) markCredentialsForDeletion(ctx context.Context, bindingID string) error {
+	cmp := composite.New(composite.WithGroupVersionKind(mariaDBUserGroupVersionKind))
+	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: bindingID}, cmp); err != nil {
+		return fmt.Errorf("could not get binding: %w", err)
+	}
+
+	userRef := corev1.ObjectReference{}
+	for _, r := range cmp.GetResourceReferences() {
+		if r.Kind == "User" {
+			userRef = r
+		}
+	}
+	if userRef.Kind == "" {
+		return errors.New("unable to find User object in composite")
+	}
+
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf(secretName, bindingID),
+			Name:      fmt.Sprintf(secretName, cmp.GetName()),
 			Namespace: msb.cp.config.Namespace,
 		},
 	}
-	return msb.cp.client.Delete(ctx, secret)
+	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: fmt.Sprintf(secretName, cmp.GetName()), Namespace: msb.cp.config.Namespace}, secret); err != nil {
+		return fmt.Errorf("failed to fetch secret: %w", err)
+	}
+
+	user := &unstructured.Unstructured{}
+	user.SetAPIVersion(userRef.APIVersion)
+	user.SetKind(userRef.Kind)
+	user.SetName(userRef.Name)
+	if err := msb.cp.client.Get(ctx, types.NamespacedName{Name: user.GetName()}, user); err != nil {
+		return fmt.Errorf("failed to fetch user: %w", err)
+	}
+
+	ref := metav1.OwnerReference{
+		APIVersion:         user.GetAPIVersion(),
+		Kind:               user.GetKind(),
+		Name:               user.GetName(),
+		UID:                user.GetUID(),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}
+	secret.SetOwnerReferences([]metav1.OwnerReference{ref})
+	return msb.cp.client.Update(ctx, secret)
 }
 
 // Deprovisionable always returns nil for MariadbDatabase instances.

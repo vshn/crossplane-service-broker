@@ -170,8 +170,9 @@ func (cp Crossplane) Plan(rctx *reqcontext.ReqContext, planID string) (*Plan, er
 // The `ok` parameter is *only* set to true if no error is returned and the instance already exists.
 // Normal errors are returned as-is.
 // FIXME(mw): is it correct to return `false, errInstanceNotFound` if PlanNameLabel does not match? And how should that be handled?
-//            Ported from PoC code as-is, and errInstanceNotFound is handled as instance really not found, however as the ID exists, how
-//            can we speak about having no instance with that name? It's a UUID after all.
+//
+//	Ported from PoC code as-is, and errInstanceNotFound is handled as instance really not found, however as the ID exists, how
+//	can we speak about having no instance with that name? It's a UUID after all.
 func (cp Crossplane) Instance(rctx *reqcontext.ReqContext, id string, plan *Plan) (inst *Instance, ok bool, err error) {
 	gvk, err := plan.GVK()
 	if err != nil {
