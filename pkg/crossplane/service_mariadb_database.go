@@ -304,9 +304,10 @@ func createCredentials(endpoint *Endpoint, username, password, database, databas
 	}
 	if metricsEnabled {
 		creds["metricsEndpoints"] = []string{
-			fmt.Sprintf("http://%s-mariadb-0.%s.%s", databaseParent, clusterName, metricsDomain),
-			fmt.Sprintf("http://%s-mariadb-1.%s.%s", databaseParent, clusterName, metricsDomain),
-			fmt.Sprintf("http://%s-mariadb-2.%s.%s", databaseParent, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s.%s.%s", databaseParent, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s.%s.%s/mariadb/0", databaseParent, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s.%s.%s/mariadb/1", databaseParent, clusterName, metricsDomain),
+			fmt.Sprintf("http://%s.%s.%s/mariadb/2", databaseParent, clusterName, metricsDomain),
 		}
 	}
 

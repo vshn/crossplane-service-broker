@@ -85,9 +85,10 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	}
 	if rsb.cp.config.EnableMetrics {
 		creds["metricsEndpoints"] = []string{
-			fmt.Sprintf("http://%s-redis-0.%s.%s", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
-			fmt.Sprintf("http://%s-redis-1.%s.%s", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
-			fmt.Sprintf("http://%s-redis-2.%s.%s", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
+			fmt.Sprintf("http://%s.%s.%s", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
+			fmt.Sprintf("http://%s.%s.%s/redis/0", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
+			fmt.Sprintf("http://%s.%s.%s/redis/1", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
+			fmt.Sprintf("http://%s.%s.%s/redis/2", rsb.instance.ID(), cn, rsb.cp.config.MetricsDomain),
 		}
 	}
 
