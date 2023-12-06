@@ -7,7 +7,7 @@ require (
 	github.com/crossplane/crossplane v1.6.1
 	github.com/crossplane/crossplane-runtime v0.15.1-0.20211029211307-c72bcdd922eb
 	github.com/go-logr/zapr v0.4.0
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/pascaldekloe/jwt v1.10.0
 	github.com/pivotal-cf/brokerapi/v8 v8.2.1
