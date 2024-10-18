@@ -6,6 +6,9 @@ metadata:
     service.syn.tools/id: 8d4b8039-6bcc-4f68-98f0-0e8efa5ab0e2
     service.syn.tools/name: redis-k8s
     service.syn.tools/updatable: "true"
+    appcat.vshn.io/ownerapiversion: v1alpha1
+    appcat.vshn.io/ownergroup: syn.tools
+    appcat.vshn.io/ownerkind: CompositeMariaDBInstance
   name: compositeredisinstances.syn.tools
   ownerReferences:
     - apiVersion: apiextensions.crossplane.io/v1

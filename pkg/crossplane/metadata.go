@@ -9,6 +9,7 @@ import (
 const (
 	// SynToolsBase is the base domain
 	SynToolsBase = "service.syn.tools"
+	AppcatBase   = "appcat.vshn.io"
 
 	// DescriptionAnnotation of the instance
 	DescriptionAnnotation = SynToolsBase + "/description"
@@ -43,35 +44,48 @@ const (
 	DeletedLabel = SynToolsBase + "/deleted"
 	// PrincipalLabel stores the username of the entity (person or system) that created the respective resource
 	PrincipalLabel = SynToolsBase + "/principal"
+
+	//OwnerApiVersionLabel stores the apiVersion of the composite
+	OwnerApiVersionLabel = AppcatBase + "/ownerapiversion"
+	//OwnerGroupLabel stores the group of the composite
+	OwnerGroupLabel = AppcatBase + "/ownergroup"
+	//OwnerKindLabel stores the kind of the composite
+	OwnerKindLabel = AppcatBase + "/ownerkind"
 )
 
 // Labels provides uniform access to parsed labels.
 type Labels struct {
-	ServiceName ServiceName
-	ServiceID   string
-	PlanName    string
-	PlanSize    string
-	InstanceID  string
-	ParentID    string
-	SLA         string
-	Bindable    bool
-	Updatable   bool
-	Deleted     bool
+	ServiceName     ServiceName
+	ServiceID       string
+	PlanName        string
+	PlanSize        string
+	InstanceID      string
+	ParentID        string
+	SLA             string
+	Bindable        bool
+	Updatable       bool
+	Deleted         bool
+	OwnerApiVersion string
+	OwnerGroup      string
+	OwnerKind       string
 }
 
 func parseLabels(l map[string]string) (*Labels, error) {
 	name := l[PlanNameLabel]
 	sla := l[SLALabel]
 	md := Labels{
-		ServiceName: ServiceName(l[ServiceNameLabel]),
-		ServiceID:   l[ServiceIDLabel],
-		PlanName:    name,
-		PlanSize:    getPlanSize(name, sla),
-		InstanceID:  l[InstanceIDLabel],
-		ParentID:    l[ParentIDLabel],
-		SLA:         sla,
-		Bindable:    true,
-		Deleted:     false,
+		ServiceName:     ServiceName(l[ServiceNameLabel]),
+		ServiceID:       l[ServiceIDLabel],
+		PlanName:        name,
+		PlanSize:        getPlanSize(name, sla),
+		InstanceID:      l[InstanceIDLabel],
+		ParentID:        l[ParentIDLabel],
+		SLA:             sla,
+		Bindable:        true,
+		Deleted:         false,
+		OwnerApiVersion: l[OwnerApiVersionLabel],
+		OwnerGroup:      l[OwnerGroupLabel],
+		OwnerKind:       l[OwnerKindLabel],
 	}
 	var err error
 
