@@ -7,6 +7,9 @@ metadata:
     service.syn.tools/id: 5e7ee9b8-3f5e-4081-a91f-e0cd98827e84
     service.syn.tools/name: mariadb-k8s
     service.syn.tools/updatable: "true"
+    appcat.vshn.io/ownerapiversion: v1alpha1
+    appcat.vshn.io/ownergroup: syn.tools
+    appcat.vshn.io/ownerkind: CompositeMariaDBInstance
   name: compositemariadbinstances.syn.tools
   ownerReferences:
     - apiVersion: apiextensions.crossplane.io/v1

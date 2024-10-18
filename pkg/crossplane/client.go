@@ -268,7 +268,7 @@ func (cp Crossplane) prepareLabels(rctx *reqcontext.ReqContext, id string, plan 
 	}
 
 	// Copy relevant labels from plan
-	planLabels := []string{ServiceIDLabel, ServiceNameLabel, PlanNameLabel, ClusterLabel, SLALabel}
+	planLabels := []string{ServiceIDLabel, ServiceNameLabel, PlanNameLabel, ClusterLabel, SLALabel, OwnerApiVersionLabel, OwnerGroupLabel, OwnerKindLabel}
 	for _, name := range planLabels {
 		l[name] = plan.Composition.Labels[name]
 	}
