@@ -33,4 +33,4 @@ jobs:
         with:
           report_paths: "**/e2e/report.xml"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          check_name: e2e-report (${{ matrix.kind-node-version }}
+          check_name: e2e-report (${{ matrix.kind-node-version }})
