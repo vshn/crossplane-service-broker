@@ -12,6 +12,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-getter v1.7.6
+	github.com/hashicorp/go-getter/v2 v2.2.3
 	github.com/pascaldekloe/jwt v1.12.0
 	github.com/pivotal-cf/brokerapi/v11 v11.0.10
 	github.com/pivotal-cf/brokerapi/v8 v8.2.3
