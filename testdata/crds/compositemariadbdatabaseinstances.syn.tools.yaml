@@ -5,6 +5,9 @@ metadata:
   labels:
     name: compositemariadbdatabaseinstances.syn.tools
     service.syn.tools/name: mariadb-k8s-database
+    appcat.vshn.io/ownerapiversion: v1alpha1
+    appcat.vshn.io/ownergroup: syn.tools
+    appcat.vshn.io/ownerkind: CompositeMariaDBDatabaseInstance
   name: compositemariadbdatabaseinstances.syn.tools
   ownerReferences:
     - apiVersion: apiextensions.crossplane.io/v1

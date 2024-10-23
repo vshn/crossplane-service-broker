@@ -4,6 +4,9 @@ metadata:
   labels:
     name: compositemariadbuserinstances.syn.tools
     service.syn.tools/name: mariadb-k8s-user
+    appcat.vshn.io/ownerapiversion: v1alpha1
+    appcat.vshn.io/ownergroup: syn.tools
+    appcat.vshn.io/ownerkind: CompositeMariaDBUserInstance
   name: compositemariadbuserinstances.syn.tools
 spec:
   conversion:
