@@ -7,7 +7,7 @@ toolchain go1.23.2
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/crossplane/crossplane v1.15.3
-	github.com/crossplane/crossplane-runtime v1.16.0
+	github.com/crossplane/crossplane-runtime v1.17.0
 	github.com/go-logr/zapr v1.3.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-cleanhttp v0.5.2
@@ -206,4 +206,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
-replace github.com/crossplane/crossplane-runtime => github.com/crossplane/crossplane-runtime v1.15.1
+replace github.com/crossplane/crossplane-runtime => github.com/crossplane/crossplane-runtime v1.17.0
