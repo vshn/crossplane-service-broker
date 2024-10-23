@@ -8,7 +8,7 @@ metadata:
     service.syn.tools/updatable: "true"
     appcat.vshn.io/ownerapiversion: v1alpha1
     appcat.vshn.io/ownergroup: syn.tools
-    appcat.vshn.io/ownerkind: CompositeMariaDBInstance
+    appcat.vshn.io/ownerkind: CompositeRedisInstance
   name: compositeredisinstances.syn.tools
   ownerReferences:
     - apiVersion: apiextensions.crossplane.io/v1
