@@ -13,6 +13,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-getter v1.7.6
 	github.com/pascaldekloe/jwt v1.12.0
+	github.com/pivotal-cf/brokerapi/v11 v11.0.10
 	github.com/pivotal-cf/brokerapi/v8 v8.2.3
 	github.com/prometheus/client_golang v1.20.5
 	github.com/stretchr/testify v1.9.0
