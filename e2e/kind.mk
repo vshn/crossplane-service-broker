@@ -1,6 +1,15 @@
 kind_marker := $(TESTBIN_DIR)/.kind-setup_complete
 
-curl_args ?= --location --fail --silent --show-error
+go_bin ?= $(PWD)/testdata/bin
+$(go_bin):
+	@mkdir -p $@
+
+# Prepare kind binary
+$(KIND): export GOOS = $(shell go env GOOS)
+$(KIND): export GOARCH = $(shell go env GOARCH)
+$(KIND): export GOBIN = $(go_bin)
+$(KIND): | $(go_bin)
+	go install sigs.k8s.io/kind@latest
 
 .DEFAULT_TARGET: kind-setup
 
@@ -20,8 +29,6 @@ kind-clean: ## Remove the kind Cluster
 
 $(KIND): export KUBECONFIG = $(KIND_KUBECONFIG)
 $(KIND): $(testbin_created)
-	curl $(curl_args) --output "$(KIND)" "https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-$$(uname)-amd64"
-	@chmod +x $(KIND)
 
 $(KIND_KUBECONFIG): export KUBECONFIG = $(KIND_KUBECONFIG)
 $(KIND_KUBECONFIG): $(KIND)

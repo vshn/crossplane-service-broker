@@ -26,9 +26,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
-	cintegration "github.com/crossplane/crossplane-runtime/pkg/test/integration"
 	"github.com/vshn/crossplane-service-broker/pkg/crossplane"
 	"github.com/vshn/crossplane-service-broker/pkg/integration"
+	cintegration "github.com/vshn/crossplane-service-broker/pkg/integration/test/integration"
 )
 
 type EnvTestSuite struct {

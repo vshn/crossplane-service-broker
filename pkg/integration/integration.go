@@ -8,12 +8,12 @@ import (
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/unstructured/composite"
-	"github.com/crossplane/crossplane-runtime/pkg/test/integration"
 	xv1 "github.com/crossplane/crossplane/apis/apiextensions/v1"
 	"github.com/go-logr/zapr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vshn/crossplane-service-broker/pkg/config"
+	integrationtest "github.com/vshn/crossplane-service-broker/pkg/integration/test/integration"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -261,7 +261,7 @@ func RemoveObjects(ctx context.Context, objs []client.Object) PrePostRunFunc {
 }
 
 // SetupManager creates the envtest manager setup with required objects.
-func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane.Crossplane, error) {
+func SetupManager(t *testing.T) (*integrationtest.Manager, lager.Logger, *crossplane.Crossplane, error) {
 	if db := os.Getenv("DEBUG"); db != "" {
 		zl, _ := zap.NewDevelopment()
 		log.SetLogger(zapr.NewLogger(zl))
@@ -271,8 +271,8 @@ func SetupManager(t *testing.T) (*integration.Manager, lager.Logger, *crossplane
 	err := os.Setenv("KUBEBUILDER_ASSETS", "../../testdata/bin")
 	require.NoError(t, err)
 
-	m, err := integration.New(nil,
-		integration.WithCRDPaths("../../testdata/crds"),
+	m, err := integrationtest.New(nil,
+		integrationtest.WithCRDPaths("../../testdata/crds"),
 	)
 	if err != nil {
 		return nil, nil, nil, err
