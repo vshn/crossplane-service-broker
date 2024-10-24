@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -155,14 +155,14 @@ func (msb MariadbDatabaseServiceBinder) markCredentialsForDeletion(ctx context.C
 	}
 
 	ref := metav1.OwnerReference{
-		APIVersion:         user.GetAPIVersion(),
-		Kind:               user.GetKind(),
-		Name:               user.GetName(),
-		UID:                user.GetUID(),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		APIVersion:         "v1",
+		Kind:               "Secret",
+		Name:               secret.GetName(),
+		UID:                secret.GetUID(),
+		BlockOwnerDeletion: ptr.To(true),
 	}
-	secret.SetOwnerReferences([]metav1.OwnerReference{ref})
-	return msb.cp.client.Update(ctx, secret)
+	user.SetOwnerReferences([]metav1.OwnerReference{ref})
+	return msb.cp.client.Update(ctx, user)
 }
 
 // Deprovisionable always returns nil for MariadbDatabase instances.
