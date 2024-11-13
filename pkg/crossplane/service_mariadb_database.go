@@ -232,8 +232,11 @@ func (msb MariadbDatabaseServiceBinder) createBinding(ctx context.Context, bindi
 	}
 
 	labels := map[string]string{
-		InstanceIDLabel: instanceID,
-		ParentIDLabel:   parentReference,
+		InstanceIDLabel:      instanceID,
+		ParentIDLabel:        parentReference,
+		OwnerApiVersionLabel: mariaDBUserGroupVersionKind.Version,
+		OwnerGroupLabel:      mariaDBGroupVersionKind.Group,
+		OwnerKindLabel:       mariaDBUserGroupVersionKind.Kind,
 	}
 
 	secret := &corev1.Secret{
