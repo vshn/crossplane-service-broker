@@ -11,7 +11,8 @@ require (
 	github.com/go-logr/zapr v1.3.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-cleanhttp v0.5.2
-	github.com/hashicorp/go-getter v1.7.6
+	github.com/hashicorp/go-getter v1.7.8
+	github.com/hashicorp/go-getter/v2 v2.2.3
 	github.com/pascaldekloe/jwt v1.12.0
 	github.com/pivotal-cf/brokerapi/v8 v8.2.3
 	github.com/prometheus/client_golang v1.20.5
@@ -175,15 +176,15 @@ require (
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap/exp v0.1.1-0.20240913022758-ede8e1888f83 // indirect
-	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/term v0.25.0 // indirect
-	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/term v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
