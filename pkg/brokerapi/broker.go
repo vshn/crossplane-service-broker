@@ -99,16 +99,9 @@ func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string
 
 	ap := map[string]interface{}{}
 	if params != nil {
-		// ServiceBinderFactory is used out of convenience, however it seems the wrong approach here - might refactor later.
-		sb, err := crossplane.ServiceBinderFactory(b.cp, plan.Labels.ServiceName, instance, rctx.Logger)
+		ap, err = b.validateParams(rctx, instance, plan.Labels.ServiceName, params)
 		if err != nil {
 			return res, err
-		}
-		if pv, ok := sb.(crossplane.ProvisionValidater); ok {
-			ap, err = pv.ValidateProvisionParams(rctx.Context, params)
-			if err != nil {
-				return res, apiresponses.NewFailureResponse(err, http.StatusBadRequest, "validate-provision-failed")
-			}
 		}
 	}
 
@@ -318,7 +311,7 @@ func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string, deta
 }
 
 // Update allows to change the SLA level from standard -> premium (and vice-versa).
-func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPlanID, newPlanID string) (domain.UpdateServiceSpec, error) {
+func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPlanID, newPlanID string, rawParameters json.RawMessage) (domain.UpdateServiceSpec, error) {
 	res := domain.UpdateServiceSpec{}
 
 	p, instance, err := b.getPlanInstance(rctx, oldPlanID, instanceID)
@@ -353,11 +346,35 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 	}
 	instance.Composite.SetLabels(instanceLabels)
 
-	if err := b.cp.UpdateInstance(rctx, instance, np); err != nil {
+	ap := map[string]any{}
+	if len(rawParameters) != 0 {
+		ap, err = b.validateParams(rctx, instance, instance.Labels.ServiceName, rawParameters)
+		if err != nil {
+			return res, err
+		}
+	}
+
+	if err := b.cp.UpdateInstance(rctx, instance, np, ap); err != nil {
 		return res, err
 	}
 
 	return res, nil
+}
+
+func (b Broker) validateParams(rctx *reqcontext.ReqContext, instance *crossplane.Instance, name crossplane.ServiceName, rawParameters json.RawMessage) (map[string]any, error) {
+	// ServiceBinderFactory is used out of convenience, however it seems the wrong approach here - might refactor later.
+	ap := map[string]any{}
+	sb, err := crossplane.ServiceBinderFactory(b.cp, name, instance, rctx.Logger)
+	if err != nil {
+		return nil, err
+	}
+	if pv, ok := sb.(crossplane.ProvisionValidater); ok {
+		ap, err = pv.ValidateProvisionParams(rctx.Context, rawParameters)
+		if err != nil {
+			return nil, apiresponses.NewFailureResponse(err, http.StatusBadRequest, "validate-update-failed")
+		}
+	}
+	return ap, nil
 }
 
 func (b Broker) getPlanInstance(rctx *reqcontext.ReqContext, planID, instanceID string) (*crossplane.Plan, *crossplane.Instance, error) {
