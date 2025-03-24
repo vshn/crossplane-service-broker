@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 
 	"code.cloudfoundry.org/lager"
@@ -117,5 +118,28 @@ func (rsb *RedisServiceBinder) ValidateProvisionParams(_ context.Context, params
 		return validatedParams, fmt.Errorf("cannot unmarshal parameters: %w", err)
 	}
 
+	// SPKS's broker GUI can't handle booleans, instead it creates an array of items that were ticked.
+	// we need to parse that an convert to a boolean.
+	// If the `tls` button wasn't set, the array will be null. We rewrite the array to a
+	// boolean.
+	if validatedParams["tls"] != nil && interfaceIsSlice(validatedParams["tls"]) {
+		// we don't really care what type of elements it contains. If it
+		// contains any element at all, we assume tls should get enabled.
+		if reflect.ValueOf(validatedParams["tls"]).Len() >= 1 {
+			validatedParams["tls"] = true
+		} else {
+			validatedParams["tls"] = false
+		}
+	}
+
 	return validatedParams, nil
+}
+
+func interfaceIsSlice(t interface{}) bool {
+	switch reflect.TypeOf(t).Kind() {
+	case reflect.Slice:
+		return true
+	default:
+		return false
+	}
 }
