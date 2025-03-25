@@ -98,7 +98,7 @@ func (b BrokerAPI) Update(ctx context.Context, instanceID string, details domain
 	})
 	rctx.Logger.Info("update-service-instance")
 
-	res, err := b.broker.Update(rctx, instanceID, details.ServiceID, details.PreviousValues.PlanID, details.PlanID)
+	res, err := b.broker.Update(rctx, instanceID, details.ServiceID, details.PreviousValues.PlanID, details.PlanID, details.RawParameters)
 	if err != nil {
 		switch err {
 		case ErrPlanChangeNotPermitted, ErrServiceUpdateNotPermitted:

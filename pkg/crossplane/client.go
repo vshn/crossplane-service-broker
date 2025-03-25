@@ -283,12 +283,16 @@ func (cp Crossplane) prepareLabels(rctx *reqcontext.ReqContext, id string, plan 
 }
 
 // UpdateInstance updates `instance` on k8s.
-func (cp *Crossplane) UpdateInstance(rctx *reqcontext.ReqContext, instance *Instance, plan *Plan) error {
+func (cp *Crossplane) UpdateInstance(rctx *reqcontext.ReqContext, instance *Instance, plan *Plan, params map[string]any) error {
 	gvk, err := plan.GVK()
 	if err != nil {
 		return err
 	}
 	instance.Composite.SetGroupVersionKind(gvk)
+
+	if err := fieldpath.Pave(instance.Composite.Object).SetValue(instanceSpecParamsPath, params); err != nil {
+		return err
+	}
 
 	return cp.client.Update(rctx.Context, instance.Composite.GetUnstructured())
 }

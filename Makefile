@@ -29,9 +29,9 @@ integration-test: export ENVTEST_K8S_VERSION = 1.28.2
 integration-test: export KUBEBUILDER_ATTACH_CONTROL_PLANE_OUTPUT = $(INTEGRATION_TEST_DEBUG_OUTPUT)
 integration-test: $(CROSSPLANE_CRDS) ## Run integration tests with envtest
 	go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest; \
-	setup-envtest use -p path 1.25.x!; \
-	source <(setup-envtest use -i -p env 1.25.x); \
-	cp $${KUBEBUILDER_ASSETS}/* ${TESTBIN_DIR}; \
+	assets=$$(setup-envtest use -p path 1.25.x!); \
+	mkdir -p $(TESTBIN_DIR); \
+	cp "$${assets}/"* $(TESTBIN_DIR); \
 		go test -tags=integration -v ./... -coverprofile cover.out
 
 .PHONY: build

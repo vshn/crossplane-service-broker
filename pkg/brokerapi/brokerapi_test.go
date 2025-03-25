@@ -887,6 +887,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 			want: &domain.Binding{
 				IsAsync: false,
 				Credentials: crossplane.Credentials{
+					"ca.crt":   "",
 					"host":     "localhost",
 					"master":   "redis://1-1-1",
 					"password": "supersecret",
@@ -1282,6 +1283,7 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 			},
 			want: &domain.GetBindingSpec{
 				Credentials: crossplane.Credentials{
+					"ca.crt":   "",
 					"host":     "localhost",
 					"master":   "redis://1-1-1",
 					"password": "supersecret",

@@ -2,13 +2,17 @@ package crossplane
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 
 	"code.cloudfoundry.org/lager"
 	xrv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/pivotal-cf/brokerapi/v8/domain/apiresponses"
 )
+
+var _ ProvisionValidater = &RedisServiceBinder{}
 
 // SentinelPortKey is the key in the connection secret that contains the port to Redis Sentinel
 const SentinelPortKey = "sentinelPort"
@@ -64,6 +68,14 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	if err != nil {
 		return nil, err
 	}
+
+	caCert, ok := s.Data["ca.crt"]
+	if !ok {
+		// Only redis 7 has that field.
+		// So we don't fail if it doesn't exist.
+		caCert = []byte("")
+	}
+
 	cn := rsb.instance.GetClusterName()
 	creds := Credentials{
 		"password": string(s.Data[xrv1.ResourceCredentialsSecretPasswordKey]),
@@ -82,6 +94,7 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 				"port": port,
 			},
 		},
+		"ca.crt": string(caCert),
 	}
 	if rsb.cp.config.EnableMetrics {
 		creds["metricsEndpoints"] = []string{
@@ -93,4 +106,40 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	}
 
 	return creds, nil
+}
+
+// ValidateProvisionParams doesn't currently validate anything, it will simply take the params and convert them to
+// a map. This is because there are multiple Redis implementations, one has parameters and the other doesn't.
+func (rsb *RedisServiceBinder) ValidateProvisionParams(_ context.Context, params json.RawMessage) (map[string]interface{}, error) {
+	validatedParams := map[string]any{}
+
+	err := json.Unmarshal(params, &validatedParams)
+	if err != nil {
+		return validatedParams, fmt.Errorf("cannot unmarshal parameters: %w", err)
+	}
+
+	// SPKS's broker GUI can't handle booleans, instead it creates an array of items that were ticked.
+	// we need to parse that an convert to a boolean.
+	// If the `tls` button wasn't set, the array will be null. We rewrite the array to a
+	// boolean.
+	if validatedParams["tls"] != nil && interfaceIsSlice(validatedParams["tls"]) {
+		// we don't really care what type of elements it contains. If it
+		// contains any element at all, we assume tls should get enabled.
+		if reflect.ValueOf(validatedParams["tls"]).Len() >= 1 {
+			validatedParams["tls"] = true
+		} else {
+			validatedParams["tls"] = false
+		}
+	}
+
+	return validatedParams, nil
+}
+
+func interfaceIsSlice(t interface{}) bool {
+	switch reflect.TypeOf(t).Kind() {
+	case reflect.Slice:
+		return true
+	default:
+		return false
+	}
 }
