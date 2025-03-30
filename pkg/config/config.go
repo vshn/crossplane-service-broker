@@ -116,47 +116,47 @@ func ReadConfig(getEnv GetEnv) (*Config, error) {
 
 	ids, err := getServiceIDs(getEnv)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get service ids env variable: %w", err)
 	}
 	cfg.ServiceIDs = ids
 
 	rt, err := getTimeout(getEnv, EnvHTTPReadTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get read timeouts env variable:  %w", err)
 	}
 	cfg.ReadTimeout = rt
 
 	wt, err := getTimeout(getEnv, EnvHTTPWriteTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get write timeouts env variable: %w", err)
 	}
 	cfg.WriteTimeout = wt
 
 	bytes, err := getHTTPMaxHeaderBytes(getEnv)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get max header bytes env variable: %w", err)
 	}
 	cfg.MaxHeaderBytes = bytes
 
 	err = loadJWTSigningKeys(getEnv, cfg.JWKeyRegister)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to load JWT signing keys: %w", err)
 	}
 
 	err = ensureRequiredSettings(cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to ensure required settings: %w", err)
 	}
 
 	enableMetrics, err := getEnableMetrics(getEnv)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get metrics enabled env variable: %w", err)
 	}
 	cfg.EnableMetrics = enableMetrics
 
 	metricsDomain, err := getMetricsDomain(getEnv, cfg.EnableMetrics)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get enable metrics domain env variable: %w", err)
 	}
 	cfg.MetricsDomain = metricsDomain
 
@@ -259,10 +259,10 @@ func getMetricsDomain(GetEnv GetEnv, enableMetrics bool) (string, error) {
 func loadJWTSigningKeys(getEnv GetEnv, keys *jwt.KeyRegister) error {
 	err := loadKeysFromPath(getEnv, keys, EnvJWTKeyJWKURL, loadJWK)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to load keys from '%s': %w", EnvJWTKeyJWKURL, err)
 	}
 	err = loadKeysFromPath(getEnv, keys, EnvJWTKeyPEMURL, loadPEM)
-	return err
+	return fmt.Errorf("unable to load keys from '%s': %w", EnvJWTKeyPEMURL, err)
 }
 
 func loadKeysFromPath(getEnv GetEnv, keys *jwt.KeyRegister, envVarName string, loadFunc keyLoadingFun) error {
@@ -278,7 +278,7 @@ func loadKeysFromPath(getEnv GetEnv, keys *jwt.KeyRegister, envVarName string, l
 
 	_, err = loadFunc(keys, content)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to load func with content: %s: %w", string(content[:]), err)
 	}
 	return nil
 }
