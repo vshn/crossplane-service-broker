@@ -151,3 +151,76 @@ func Test_PlanComparer(t *testing.T) {
 		})
 	}
 }
+
+func TestPlanRedis72Changed(t *testing.T) {
+	tests := []struct {
+		desc     string
+		a        Plan
+		b        Plan
+		expected bool
+	}{
+		{
+			desc:     "Both nil labels",
+			a:        Plan{Labels: nil},
+			b:        Plan{Labels: nil},
+			expected: false,
+		},
+		{
+			desc:     "First plan has nil labels, second has non-7.2",
+			a:        Plan{Labels: nil},
+			b:        Plan{Labels: &Labels{Version: "7.0"}},
+			expected: false,
+		},
+		{
+			desc:     "First plan has nil labels, second has 7.2",
+			a:        Plan{Labels: nil},
+			b:        Plan{Labels: &Labels{Version: "7.2"}},
+			expected: false,
+		},
+		{
+			desc:     "First has non-7.2, second nil labels",
+			a:        Plan{Labels: &Labels{Version: "7.0"}},
+			b:        Plan{Labels: nil},
+			expected: false,
+		},
+		{
+			desc:     "First has 7.2, second nil labels",
+			a:        Plan{Labels: &Labels{Version: "7.2"}},
+			b:        Plan{Labels: nil},
+			expected: false,
+		},
+		{
+			desc:     "Both have the same version 7.2",
+			a:        Plan{Labels: &Labels{Version: "7.2"}},
+			b:        Plan{Labels: &Labels{Version: "7.2"}},
+			expected: false,
+		},
+		{
+			desc:     "Both have the same non-7.2 version",
+			a:        Plan{Labels: &Labels{Version: "7.0"}},
+			b:        Plan{Labels: &Labels{Version: "7.0"}},
+			expected: false,
+		},
+		{
+			desc:     "First has 7.2, second has different version",
+			a:        Plan{Labels: &Labels{Version: "7.2"}},
+			b:        Plan{Labels: &Labels{Version: "7.0"}},
+			expected: true,
+		},
+		{
+			desc:     "First has non-7.2, second has 7.2",
+			a:        Plan{Labels: &Labels{Version: "7.0"}},
+			b:        Plan{Labels: &Labels{Version: "7.2"}},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := planRedis72Changed(tt.a, tt.b)
+			if result != tt.expected {
+				t.Errorf("%s: expected %v, got %v", tt.desc, tt.expected, result)
+			}
+		})
+	}
+}

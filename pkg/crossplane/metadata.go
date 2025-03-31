@@ -51,6 +51,8 @@ const (
 	OwnerGroupLabel = AppcatBase + "/ownergroup"
 	//OwnerKindLabel stores the kind of the composite
 	OwnerKindLabel = AppcatBase + "/ownerkind"
+	// VersionLabel stores the version of the service
+	VersionLabel = AppcatBase + "/version"
 )
 
 // Labels provides uniform access to parsed labels.
@@ -68,6 +70,7 @@ type Labels struct {
 	OwnerApiVersion string
 	OwnerGroup      string
 	OwnerKind       string
+	Version         string
 }
 
 func parseLabels(l map[string]string) (*Labels, error) {
@@ -86,6 +89,7 @@ func parseLabels(l map[string]string) (*Labels, error) {
 		OwnerApiVersion: l[OwnerApiVersionLabel],
 		OwnerGroup:      l[OwnerGroupLabel],
 		OwnerKind:       l[OwnerKindLabel],
+		Version:         l[VersionLabel],
 	}
 	var err error
 

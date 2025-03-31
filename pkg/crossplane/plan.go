@@ -109,6 +109,11 @@ func (pc PlanUpdateChecker) AllowUpdate(a, b Plan) bool {
 		return false
 	}
 
+	if planRedis72Changed(a, b) {
+		// Do not allow upgrade or downgrade Redis with version 7.2
+		return false
+	}
+
 	if planSizeChanged(a, b) {
 		return pc.allowSizeUpdate(a, b)
 	}
@@ -141,6 +146,13 @@ func planSizeChanged(a, b Plan) bool {
 
 func planSLAChanged(a, b Plan) bool {
 	return a.Labels != nil && b.Labels != nil && a.Labels.SLA != b.Labels.SLA
+}
+
+func planRedis72Changed(a, b Plan) bool {
+	if a.Labels == nil || b.Labels == nil {
+		return false
+	}
+	return (a.Labels.Version == "7.2") != (b.Labels.Version == "7.2")
 }
 
 func newPlan(c xv1.Composition) (*Plan, error) {

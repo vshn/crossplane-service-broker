@@ -45,6 +45,7 @@ func Test_parseLabels(t *testing.T) {
 				OwnerApiVersionLabel: "v1alpha1",
 				OwnerGroupLabel:      "syn.tools",
 				OwnerKindLabel:       "CompositeFooInstance",
+				VersionLabel:         "7.2",
 			},
 			want: &Labels{
 				ServiceName:     RedisService,
@@ -60,6 +61,7 @@ func Test_parseLabels(t *testing.T) {
 				OwnerApiVersion: "v1alpha1",
 				OwnerGroup:      "syn.tools",
 				OwnerKind:       "CompositeFooInstance",
+				Version:         "7.2",
 			},
 			wantErr: false,
 		},
@@ -75,6 +77,7 @@ func Test_parseLabels(t *testing.T) {
 				BindableLabel:    "false",
 				UpdatableLabel:   "true",
 				DeletedLabel:     "true",
+				VersionLabel:     "6.2",
 			},
 			want: &Labels{
 				ServiceName: RedisService,
@@ -87,6 +90,7 @@ func Test_parseLabels(t *testing.T) {
 				Bindable:    false,
 				Updatable:   true,
 				Deleted:     true,
+				Version:     "6.2",
 			},
 			wantErr: false,
 		},
