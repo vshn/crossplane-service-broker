@@ -2,7 +2,7 @@ module github.com/vshn/crossplane-service-broker
 
 go 1.23.0
 
-toolchain go1.23.2
+toolchain go1.24.2
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
