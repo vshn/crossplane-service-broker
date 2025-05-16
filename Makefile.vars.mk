@@ -1,4 +1,9 @@
+ARCHS ?= linux/amd64
 IMG_TAG ?= latest
+IMG_REGISTRIES ?= docker.io quay.io
+IMG_NAME ?= crossplane-service-broker
+IMG_PATHS ?= $(foreach reg, $(IMG_REGISTRIES), $(reg)/vshn/$(IMG_NAME))
+BUILD_TAGS := $(foreach path, $(IMG_PATHS), $(path):$(IMG_TAG))
 VERSION ?= $(shell git describe --tags --always --dirty --match=v* || (echo "command failed $$?"; exit 1))
 
 BIN_FILENAME ?= $(PROJECT_ROOT_DIR)/crossplane-service-broker
@@ -21,7 +26,7 @@ KIND_KUBECTL_ARGS ?= --validate=true
 
 SHASUM ?= $(shell command -v sha1sum > /dev/null && echo "sha1sum" || echo "shasum -a1")
 E2E_TAG ?= e2e_$(shell $(SHASUM) $(BIN_FILENAME) | cut -b-8)
-E2E_REPO ?= local.dev/crossplane-service-broker/e2e
+E2E_REPO ?= local.dev/$(IMG_NAME)/e2e
 E2E_IMG = $(E2E_REPO):$(E2E_TAG)
 
 TESTDATA_CRD_DIR = $(TESTDATA_DIR)/crds
@@ -36,10 +41,6 @@ CROSSPLANE_CRDS = $(addprefix $(TESTDATA_CRD_DIR)/, apiextensions.crossplane.io_
 					pkg.crossplane.io_providers.yaml)
 
 PROVIDERSQL_VERSION = v0.9.0
-
-# Image URL to use all building/pushing image targets
-DOCKER_IMG ?= docker.io/vshn/crossplane-service-broker:$(IMG_TAG)
-QUAY_IMG ?= quay.io/vshn/crossplane-service-broker:$(IMG_TAG)
 
 testbin_created = $(TESTBIN_DIR)/.created
 
