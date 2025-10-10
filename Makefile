@@ -1,5 +1,5 @@
 # Set Shell to bash, otherwise some targets fail with dash/zsh etc.
-SHELL := /bin/bash
+SHELL := /usr/bin/env bash
 
 # Disable built-in rules
 MAKEFLAGS += --no-builtin-rules

@@ -15,21 +15,24 @@ import (
 
 // Config contains all configuration values.
 type Config struct {
-	Kubeconfig         string
-	ServiceIDs         []string
-	ListenAddr         string
-	Username           string
-	Password           string
-	UsernameClaim      string
-	JWKeyRegister      *jwt.KeyRegister
-	Namespace          string
-	ReadTimeout        time.Duration
-	WriteTimeout       time.Duration
-	MaxHeaderBytes     int
-	PlanUpdateSizeRule string
-	PlanUpdateSLARule  string
-	EnableMetrics      bool
-	MetricsDomain      string
+	Kubeconfig             string
+	ServiceIDs             []string
+	ListenAddr             string
+	Username               string
+	Password               string
+	UsernameClaim          string
+	JWKeyRegister          *jwt.KeyRegister
+	Namespace              string
+	ReadTimeout            time.Duration
+	WriteTimeout           time.Duration
+	MaxHeaderBytes         int
+	PlanUpdateSizeRule     string
+	PlanUpdateSLARule      string
+	EnableMetrics          bool
+	MetricsDomain          string
+	RedisService           string
+	MariaDBService         string
+	MariaDBDatabaseService string
 }
 
 // GetEnv is an interface that allows to get variables from the environment
@@ -87,27 +90,42 @@ const (
 	// EnvMetricsDomain sets domain name for the metrics endpoints.
 	EnvMetricsDomain = "METRICS_DOMAIN"
 
-	defaultHTTPTimeout        = 3 * time.Minute
-	defaultHTTPMaxHeaderBytes = 1 << 20 // 1 MB
-	defaultHTTPListenAddr     = ":8080"
-	defaultUsernameClaim      = "sub"
-	defaultSLAUpdateRules     = "standard>premium|premium>standard"
-	defaultEnableMetrics      = false
+	// EnvRedisService sets the name for the RedisService
+	EnvRedisService = "REDIS_SERVICE"
+
+	// EnvMariaDBService sets the name for the MariaDBService
+	EnvMariaDBService = "MARIADB_SERVICE"
+
+	// EnvMariaDBDatabaseService sets the name for the MariaDBDatabaseService
+	EnvMariaDBDatabaseService = "MARIADB_DATABASE_SERVICE"
+
+	defaultHTTPTimeout            = 3 * time.Minute
+	defaultHTTPMaxHeaderBytes     = 1 << 20 // 1 MB
+	defaultHTTPListenAddr         = ":8080"
+	defaultUsernameClaim          = "sub"
+	defaultSLAUpdateRules         = "standard>premium|premium>standard"
+	defaultEnableMetrics          = false
+	defaultRedisService           = "redis-k8s"
+	defaultMariaDBService         = "mariadb-k8s"
+	defaultMariaDBDatabaseService = "mariadb-k8s-database"
 )
 
 // ReadConfig reads env variables using the passed function.
 func ReadConfig(getEnv GetEnv) (*Config, error) {
 	cfg := Config{
-		Kubeconfig:         getEnv(EnvKubeconfig),
-		Username:           getEnv(EnvUsername),
-		Password:           getEnv(EnvPassword),
-		UsernameClaim:      getEnv(EnvUsernameClaim),
-		Namespace:          getEnv(EnvNamespace),
-		ListenAddr:         getEnv(EnvHTTPListenAddr),
-		JWKeyRegister:      &jwt.KeyRegister{},
-		PlanUpdateSizeRule: getEnv(EnvPlanUpdateSize),
-		PlanUpdateSLARule:  getEnv(EnvPlanUpdateSLA),
-		MetricsDomain:      getEnv(EnvMetricsDomain),
+		Kubeconfig:             getEnv(EnvKubeconfig),
+		Username:               getEnv(EnvUsername),
+		Password:               getEnv(EnvPassword),
+		UsernameClaim:          getEnv(EnvUsernameClaim),
+		Namespace:              getEnv(EnvNamespace),
+		ListenAddr:             getEnv(EnvHTTPListenAddr),
+		JWKeyRegister:          &jwt.KeyRegister{},
+		PlanUpdateSizeRule:     getEnv(EnvPlanUpdateSize),
+		PlanUpdateSLARule:      getEnv(EnvPlanUpdateSLA),
+		MetricsDomain:          getEnv(EnvMetricsDomain),
+		RedisService:           getEnv(EnvRedisService),
+		MariaDBService:         getEnv(EnvMariaDBService),
+		MariaDBDatabaseService: getEnv(EnvMariaDBDatabaseService),
 	}
 
 	if cfg.PlanUpdateSLARule == "" {
@@ -159,6 +177,11 @@ func ReadConfig(getEnv GetEnv) (*Config, error) {
 		return nil, err
 	}
 	cfg.MetricsDomain = metricsDomain
+
+	cfg.RedisService = getServiceName(getEnv, EnvRedisService, defaultRedisService)
+
+	cfg.MariaDBService = getServiceName(getEnv, EnvMariaDBService, defaultMariaDBService)
+	cfg.MariaDBDatabaseService = getServiceName(getEnv, EnvMariaDBDatabaseService, defaultMariaDBDatabaseService)
 
 	setDefaults(&cfg)
 
@@ -254,6 +277,14 @@ func getMetricsDomain(GetEnv GetEnv, enableMetrics bool) (string, error) {
 		return "", fmt.Errorf("%s is set to true, but %s is empty", EnvEnableMetrics, EnvMetricsDomain)
 	}
 	return metricsDomain, nil
+}
+
+func getServiceName(getEnv GetEnv, service string, defaultSvc string) string {
+	svc := getEnv(service)
+	if svc == "" {
+		return defaultSvc
+	}
+	return svc
 }
 
 func loadJWTSigningKeys(getEnv GetEnv, keys *jwt.KeyRegister) error {

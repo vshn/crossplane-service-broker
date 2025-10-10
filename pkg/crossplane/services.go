@@ -68,11 +68,11 @@ type ProvisionValidater interface {
 // FIXME(mw): determine fate of this. We might not need differentiation anymore, once provider-helm is upgraded.
 func ServiceBinderFactory(c *Crossplane, serviceName ServiceName, instance *Instance, logger lager.Logger) (ServiceBinder, error) {
 	switch serviceName {
-	case RedisService:
+	case ServiceName(c.config.RedisService):
 		return NewRedisServiceBinder(c, instance, logger), nil
-	case MariaDBService:
+	case ServiceName(c.config.MariaDBService):
 		return NewMariadbServiceBinder(c, instance, logger), nil
-	case MariaDBDatabaseService:
+	case ServiceName(c.config.MariaDBDatabaseService):
 		return NewMariadbDatabaseServiceBinder(c, instance, logger), nil
 	}
 	return nil, fmt.Errorf("service binder %q not implemented", serviceName)
