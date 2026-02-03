@@ -640,7 +640,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_LastBindingOperation() {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -673,7 +672,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_LastBindingOperation() {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -878,7 +876,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -893,12 +890,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 					"master":   "redis://1-1-1",
 					"password": "supersecret",
 					"port":     1234,
-					"sentinels": []crossplane.Credentials{
-						{
-							"host": "localhost",
-							"port": 21234,
-						},
-					},
 					"servers": []crossplane.Credentials{
 						{
 							"host": "localhost",
@@ -939,7 +930,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -971,7 +961,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -985,12 +974,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_Bind() {
 					"master":   "redis://1-1-1",
 					"password": "supersecret",
 					"port":     1234,
-					"sentinels": []crossplane.Credentials{
-						{
-							"host": "localhost",
-							"port": 21234,
-						},
-					},
 					"servers": []crossplane.Credentials{
 						{
 							"host": "localhost",
@@ -1246,7 +1229,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 					integration.NewTestSecret(integration.TestNamespace, "1-1-1", map[string]string{
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -1276,7 +1258,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 						xrv1.ResourceCredentialsSecretPortKey:     "1234",
 						xrv1.ResourceCredentialsSecretEndpointKey: "localhost",
 						xrv1.ResourceCredentialsSecretPasswordKey: "supersecret",
-						"sentinelPort": "21234",
 					}),
 				}
 				return func(c client.Client) error {
@@ -1290,12 +1271,6 @@ func (ts *EnvTestSuite) TestBrokerAPI_GetBinding() {
 					"master":   "redis://1-1-1",
 					"password": "supersecret",
 					"port":     1234,
-					"sentinels": []crossplane.Credentials{
-						{
-							"host": "localhost",
-							"port": 21234,
-						},
-					},
 					"servers": []crossplane.Credentials{
 						{
 							"host": "localhost",

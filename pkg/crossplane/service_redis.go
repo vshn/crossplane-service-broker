@@ -14,9 +14,6 @@ import (
 
 var _ ProvisionValidater = &RedisServiceBinder{}
 
-// SentinelPortKey is the key in the connection secret that contains the port to Redis Sentinel
-const SentinelPortKey = "sentinelPort"
-
 // RedisServiceBinder defines a specific redis service with enough data to retrieve connection credentials.
 type RedisServiceBinder struct {
 	serviceBinder
@@ -64,10 +61,6 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 	if err != nil {
 		return nil, err
 	}
-	sentinelPort, err := strconv.Atoi(string(s.Data[SentinelPortKey]))
-	if err != nil {
-		return nil, err
-	}
 
 	caCert, ok := s.Data["ca.crt"]
 	if !ok {
@@ -82,12 +75,6 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 		"host":     endpoint,
 		"port":     port,
 		"master":   fmt.Sprintf("redis://%s", rsb.instance.ID()),
-		"sentinels": []Credentials{
-			{
-				"host": endpoint,
-				"port": sentinelPort,
-			},
-		},
 		"servers": []Credentials{
 			{
 				"host": endpoint,
