@@ -1,7 +1,6 @@
 package brokerapi
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -75,7 +74,7 @@ func (b Broker) servicePlans(rctx *reqcontext.ReqContext, serviceIDs []string) (
 }
 
 // Provision creates a new service instance.
-func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string, params json.RawMessage) (domain.ProvisionedServiceSpec, error) {
+func (b Broker) Provision(rctx *reqcontext.ReqContext, instanceID, planID string, params map[string]interface{}) (domain.ProvisionedServiceSpec, error) {
 	res := domain.ProvisionedServiceSpec{}
 
 	plan, err := b.cp.Plan(rctx, planID)
@@ -311,7 +310,7 @@ func (b Broker) GetInstance(rctx *reqcontext.ReqContext, instanceID string, deta
 }
 
 // Update allows to change the SLA level from standard -> premium (and vice-versa).
-func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPlanID, newPlanID string, rawParameters json.RawMessage) (domain.UpdateServiceSpec, error) {
+func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPlanID, newPlanID string, parameters map[string]interface{}) (domain.UpdateServiceSpec, error) {
 	res := domain.UpdateServiceSpec{}
 
 	p, instance, err := b.getPlanInstance(rctx, oldPlanID, instanceID)
@@ -347,8 +346,8 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 	instance.Composite.SetLabels(instanceLabels)
 
 	ap := map[string]any{}
-	if len(rawParameters) != 0 {
-		ap, err = b.validateParams(rctx, instance, instance.Labels.ServiceName, rawParameters)
+	if len(parameters) != 0 {
+		ap, err = b.validateParams(rctx, instance, instance.Labels.ServiceName, parameters)
 		if err != nil {
 			return res, err
 		}
@@ -361,7 +360,7 @@ func (b Broker) Update(rctx *reqcontext.ReqContext, instanceID, serviceID, oldPl
 	return res, nil
 }
 
-func (b Broker) validateParams(rctx *reqcontext.ReqContext, instance *crossplane.Instance, name crossplane.ServiceName, rawParameters json.RawMessage) (map[string]any, error) {
+func (b Broker) validateParams(rctx *reqcontext.ReqContext, instance *crossplane.Instance, name crossplane.ServiceName, parameters map[string]interface{}) (map[string]any, error) {
 	// ServiceBinderFactory is used out of convenience, however it seems the wrong approach here - might refactor later.
 	ap := map[string]any{}
 	sb, err := crossplane.ServiceBinderFactory(b.cp, name, instance, rctx.Logger)
@@ -369,7 +368,7 @@ func (b Broker) validateParams(rctx *reqcontext.ReqContext, instance *crossplane
 		return nil, err
 	}
 	if pv, ok := sb.(crossplane.ProvisionValidater); ok {
-		ap, err = pv.ValidateProvisionParams(rctx.Context, rawParameters)
+		ap, err = pv.ValidateProvisionParams(rctx.Context, parameters)
 		if err != nil {
 			return nil, apiresponses.NewFailureResponse(err, http.StatusBadRequest, "validate-update-failed")
 		}

@@ -19,6 +19,8 @@ const (
 	DeletionTimestampAnnotation = SynToolsBase + "/deletionTimestamp"
 	// TagsAnnotation of the instance
 	TagsAnnotation = SynToolsBase + "/tags"
+	// TagsAnnotation of the instance
+	SchemaAnnotation = SynToolsBase + "/schemas"
 )
 
 const (
@@ -92,10 +94,6 @@ func parseLabels(l map[string]string) (*Labels, error) {
 		OwnerKind:       l[OwnerKindLabel],
 	}
 	var err error
-
-	if !md.ServiceName.IsValid() {
-		return nil, fmt.Errorf("service %q not valid", md.ServiceName)
-	}
 
 	md.Bindable, err = parseBoolLabel(l[BindableLabel], true)
 	if err != nil {

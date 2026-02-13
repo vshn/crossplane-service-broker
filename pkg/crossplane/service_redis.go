@@ -2,7 +2,6 @@ package crossplane
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -97,29 +96,22 @@ func (rsb RedisServiceBinder) GetBinding(ctx context.Context, bindingID string) 
 
 // ValidateProvisionParams doesn't currently validate anything, it will simply take the params and convert them to
 // a map. This is because there are multiple Redis implementations, one has parameters and the other doesn't.
-func (rsb *RedisServiceBinder) ValidateProvisionParams(_ context.Context, params json.RawMessage) (map[string]interface{}, error) {
-	validatedParams := map[string]any{}
-
-	err := json.Unmarshal(params, &validatedParams)
-	if err != nil {
-		return validatedParams, fmt.Errorf("cannot unmarshal parameters: %w", err)
-	}
-
+func (rsb *RedisServiceBinder) ValidateProvisionParams(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error) {
 	// SPKS's broker GUI can't handle booleans, instead it creates an array of items that were ticked.
 	// we need to parse that an convert to a boolean.
 	// If the `tls` button wasn't set, the array will be null. We rewrite the array to a
 	// boolean.
-	if validatedParams["tls"] != nil && interfaceIsSlice(validatedParams["tls"]) {
+	if params["tls"] != nil && interfaceIsSlice(params["tls"]) {
 		// we don't really care what type of elements it contains. If it
 		// contains any element at all, we assume tls should get enabled.
-		if reflect.ValueOf(validatedParams["tls"]).Len() >= 1 {
-			validatedParams["tls"] = true
+		if reflect.ValueOf(params["tls"]).Len() >= 1 {
+			params["tls"] = true
 		} else {
-			validatedParams["tls"] = false
+			params["tls"] = false
 		}
 	}
 
-	return validatedParams, nil
+	return params, nil
 }
 
 func interfaceIsSlice(t interface{}) bool {

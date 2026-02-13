@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -55,7 +56,12 @@ func (b BrokerAPI) Provision(ctx context.Context, instanceID string, details dom
 		return domain.ProvisionedServiceSpec{}, APIResponseError(rctx, apiresponses.ErrAsyncRequired)
 	}
 
-	res, err := b.broker.Provision(rctx, instanceID, details.PlanID, details.RawParameters)
+	parameters, err := paramMap(details.RawContext, details.RawParameters)
+	if err != nil {
+		return domain.ProvisionedServiceSpec{}, err
+	}
+
+	res, err := b.broker.Provision(rctx, instanceID, details.PlanID, parameters)
 	return res, APIResponseError(rctx, err)
 }
 
@@ -71,6 +77,12 @@ func (b BrokerAPI) Deprovision(ctx context.Context, instanceID string, details d
 	rctx.Logger.Info("deprovision-instance")
 
 	res, err := b.broker.Deprovision(rctx, instanceID, details.PlanID)
+	if errors.Is(err, apiresponses.ErrInstanceDoesNotExist) {
+		// TODO this may not be correct behavior
+		rctx.Logger.Error("deprovision-instance could not find instance, sinking error to client", err)
+		return res, nil
+	}
+
 	return res, APIResponseError(rctx, err)
 }
 
@@ -98,7 +110,8 @@ func (b BrokerAPI) Update(ctx context.Context, instanceID string, details domain
 	})
 	rctx.Logger.Info("update-service-instance")
 
-	res, err := b.broker.Update(rctx, instanceID, details.ServiceID, details.PreviousValues.PlanID, details.PlanID, details.RawParameters)
+	parameters, err := paramMap(details.RawParameters, details.RawContext)
+	res, err := b.broker.Update(rctx, instanceID, details.ServiceID, details.PreviousValues.PlanID, details.PlanID, parameters)
 	if err != nil {
 		switch err {
 		case ErrPlanChangeNotPermitted, ErrServiceUpdateNotPermitted:
@@ -214,4 +227,14 @@ func APIResponseError(rctx *reqcontext.ReqContext, err error) error {
 		http.StatusInternalServerError,
 		"internal-server-error",
 	).Build()
+}
+
+func paramMap(messages ...json.RawMessage) (map[string]interface{}, error) {
+	var parameters map[string]interface{}
+	for _, message := range messages {
+		if err := json.Unmarshal(message, &parameters); err != nil {
+			return nil, err
+		}
+	}
+	return parameters, nil
 }

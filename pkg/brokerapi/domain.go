@@ -43,6 +43,10 @@ func newServicePlan(plan *crossplane.Plan, logger lager.Logger) domain.ServicePl
 		logger.Error("parse-metadata", err, lager.Data{"plan": plan.Composition.Name})
 		meta.DisplayName = planName
 	}
+	schemas := &domain.ServiceSchemas{}
+	if err := json.Unmarshal([]byte(plan.Schemas), schemas); err != nil {
+		logger.Info("parse-schemas", lager.Data{"msg": "No schemas or not parsable", "plan": plan.Composition.Name})
+	}
 	return domain.ServicePlan{
 		ID:          plan.Composition.Name,
 		Name:        planName,
@@ -50,5 +54,6 @@ func newServicePlan(plan *crossplane.Plan, logger lager.Logger) domain.ServicePl
 		Free:        pointer.BoolPtr(false),
 		Bindable:    &plan.Labels.Bindable,
 		Metadata:    meta,
+		Schemas:     schemas,
 	}
 }

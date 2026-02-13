@@ -283,7 +283,14 @@ func (cp Crossplane) prepareLabels(rctx *reqcontext.ReqContext, id string, plan 
 		OwnerKindLabel,
 	}
 	for _, name := range planLabels {
-		l[name] = plan.Composition.Labels[name]
+		// for each name, take either the param in the context or the label in the object
+		// this precedence is because we have control of the object labels more easily than what the broker client passes
+		if val, ok := params[name]; ok {
+			l[name] = val.(string)
+		}
+		if val, ok := plan.Composition.Labels[name]; ok {
+			l[name] = val
+		}
 	}
 
 	// slightly ugly having this service specific label setting leaking out to the generic code. Can be cleaned up later

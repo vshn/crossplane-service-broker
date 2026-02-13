@@ -2,9 +2,7 @@ package crossplane
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/vshn/crossplane-service-broker/pkg/config"
@@ -69,7 +67,7 @@ type ServiceBinder interface {
 type ProvisionValidater interface {
 	// ValidateProvisionParams can be used to check the params for validity. If valid, it should return all needed parameters
 	// for the composition.
-	ValidateProvisionParams(ctx context.Context, params json.RawMessage) (map[string]interface{}, error)
+	ValidateProvisionParams(ctx context.Context, params map[string]interface{}) (map[string]interface{}, error)
 }
 
 // ServiceBinderFactory reads the composite's labels service name and instantiates an appropriate ServiceBinder.
@@ -82,8 +80,9 @@ func ServiceBinderFactory(c *Crossplane, serviceName ServiceName, instance *Inst
 		return NewMariadbServiceBinder(c, instance, logger), nil
 	case MariaDBDatabaseService:
 		return NewMariadbDatabaseServiceBinder(c, instance, logger), nil
+	default:
+		return NewGenericServiceBinder(c, instance, logger), nil
 	}
-	return nil, fmt.Errorf("service binder %q not implemented", serviceName)
 }
 
 type serviceBinder struct {

@@ -2,7 +2,6 @@ package crossplane
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -220,11 +219,7 @@ func (msb MariadbDatabaseServiceBinder) GetBinding(ctx context.Context, bindingI
 }
 
 // ValidateProvisionParams ensures the passed parent reference is an existing mariadb instance.
-func (msb MariadbDatabaseServiceBinder) ValidateProvisionParams(ctx context.Context, params json.RawMessage) (map[string]interface{}, error) {
-	paramsMap := map[string]interface{}{}
-	if err := json.Unmarshal(params, &paramsMap); err != nil {
-		return nil, err
-	}
+func (msb MariadbDatabaseServiceBinder) ValidateProvisionParams(ctx context.Context, paramsMap map[string]interface{}) (map[string]interface{}, error) {
 	parentRef, err := getParentRef(paramsMap)
 	if err != nil {
 		return nil, err

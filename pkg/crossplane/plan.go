@@ -32,6 +32,7 @@ type Plan struct {
 	Metadata    string
 	Tags        string
 	Description string
+	Schemas     string
 }
 
 // GVK returns the group, version, kind type for the composite type ref.
@@ -154,5 +155,6 @@ func newPlan(c xv1.Composition) (*Plan, error) {
 		Metadata:    c.Annotations[MetadataAnnotation],
 		Tags:        c.Annotations[TagsAnnotation],
 		Description: c.Annotations[DescriptionAnnotation],
+		Schemas:     c.Annotations[SchemaAnnotation],
 	}, nil
 }
