@@ -1,8 +1,6 @@
 module github.com/vshn/crossplane-service-broker
 
-go 1.23.0
-
-toolchain go1.23.2
+go 1.24
 
 require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
@@ -80,7 +78,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/go-chi/chi/v5 v5.1.0 // indirect
+	github.com/go-chi/chi/v5 v5.4.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
